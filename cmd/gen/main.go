@@ -9,19 +9,22 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"text/template"
 )
 
 var ifaceInTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 type NodeIn{{.N}}[T any] interface {
-	_input{{.N}}(T)
+	Node
 
-	SetDep{{.N}}(NodeOut1[T])
+	_input{{.N}}(T)
 }
 `))
 
 var ifaceOutTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 type NodeOut{{.N}}[T any] interface {
+	Node
+
 	_output{{.N}}(T)
 }
 `))
@@ -42,46 +45,84 @@ type Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 type FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
 	Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
 
-	outputs []any
-
 	Func func({{.InputParametersDef}}) ({{.OutputReturnDef}})
 }
 
-func (f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do() {
+func (f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any) []any {
 	{{- range $idx, $i := loop .InCount}}
-		 i{{$i}} := f.Inputs()[{{$idx}}].OutputsValues()[0].(I{{$i}})
+		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
 	{{- end}}
 
 	{{if gt .OutCount 0}}
-		{{.OutputVars}} := f.Func(
-		{{- range $i := loop .InCount}}
-			 i{{$i}},
-		{{- end}}
-		)
+		{{.OutputVars}} := f.Func({{.InputVars}})
 	
-		f.outputs = []any{
-		{{- range $i := loop .OutCount}}
-			 v{{$i}},
-		{{- end}}
-		}
+		return []any{ {{.OutputVars}} }
 	{{- else}}
-		f.Func(
-		{{- range $i := loop .InCount}}
-			 i{{$i}},
-		{{- end}}
-		)
+		f.Func({{.InputVars}})
+
+		return nil
+	{{- end}}
+}
+`))
+
+var streamNodeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
+type StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
+	StreamNode
+
+	{{range $i := loop .InCount}}
+		 NodeIn{{$i}}[I{{$i}}]
+	{{- end}}
+
+	{{range $i := loop .OutCount}}
+		 NodeOut{{$i}}[O{{$i}}]
 	{{- end}}
 }
 
+type FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
+	StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
 
-func (f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) OutputsValues() []any {
-	return f.outputs
+	Func func(
+	{{range $i := loop .InCount -}}
+		 I{{$i}},
+	{{end -}}
+	{{ range $idx, $i := loop .OutCount -}}
+		 func (v O{{$i}}),
+	{{ end -}}
+	)
+}
+
+func (f FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
+	{{- range $idx, $i := loop .InCount}}
+		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
+	{{- end}}
+
+	f.Func(
+	{{range $i := loop .InCount -}}
+		 i{{$i}},
+	{{end}}
+	{{- range $idx, $i := loop .OutCount -}}
+		 func (v O{{$i}}) {
+			emit({{$idx}}, v)
+		 },
+	{{ end}}
+	)
 }
 `))
 
 var takeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
-func Take{{.N}}[T any](n NodeIn{{.N}}[T]) NodeOut1[T] {
+func Take{{.N}}[T any](n NodeOut{{.N}}[T]) NodeOut1[T] {
 	panic("TODO")
+}
+
+func Pipeline{{.N}}[{{g_generics "T" .N true}}]({{g_params "from" "NodeOut1[T#]" .N }}, to interface{ {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} }) []Edge {
+	return []Edge{
+	{{- range $idx, $i := loop .N}}
+		{
+			From: from{{$i}},
+			To:   to,
+		},
+	{{- end}}
+	}
 }
 `))
 
@@ -130,9 +171,33 @@ func genParametersList(out string, varName, typePrefix string, n int) string {
 	return out
 }
 
+func genParametersList2(out string, varName, typeTemplate string, n int) string {
+	for i := range loop(n, false) {
+		if out != "" {
+			out += ", "
+		}
+
+		t := strings.ReplaceAll(typeTemplate, "#", fmt.Sprint(i))
+
+		if varName == "" {
+			out += t
+		} else {
+			out += fmt.Sprintf("%v%v %v", varName, i, t)
+		}
+	}
+
+	return out
+}
+
 var funcs = template.FuncMap{
 	"loop": func(c int) []int {
 		return slices.Collect(loop(c, false))
+	},
+	"g_generics": func(prefix string, n int, withType bool) string {
+		return genGenericsList("", prefix, n, withType)
+	},
+	"g_params": func(varPrefix, typeTemplate string, n int) string {
+		return genParametersList2("", varPrefix, typeTemplate, n)
 	},
 }
 
@@ -187,22 +252,38 @@ func gen(w io.Writer, c Config) error {
 			genericsTypeRef := genGenericsList("", "I", i, false)
 			genericsTypeRef = genGenericsList(genericsTypeRef, "O", o, false)
 
-			inputParametersDef := genParametersList("", "v", "I", i)
-			outputReturnsDef := genParametersList("", "", "O", o)
+			{
+				inputParametersDef := genParametersList("", "v", "I", i)
+				outputReturnsDef := genParametersList("", "", "O", o)
 
-			outputVars := genParametersList("", "v", "", o)
+				inputVars := genParametersList("", "i", "", i)
+				outputVars := genParametersList("", "v", "", o)
 
-			err := nodeTpl.Execute(w, map[string]interface{}{
-				"InCount":            i,
-				"OutCount":           o,
-				"GenericsTypeDef":    genericsTypeDef,
-				"GenericsTypeRef":    genericsTypeRef,
-				"InputParametersDef": inputParametersDef,
-				"OutputReturnDef":    outputReturnsDef,
-				"OutputVars":         outputVars,
-			})
-			if err != nil {
-				return err
+				err := nodeTpl.Execute(w, map[string]interface{}{
+					"InCount":            i,
+					"OutCount":           o,
+					"GenericsTypeDef":    genericsTypeDef,
+					"GenericsTypeRef":    genericsTypeRef,
+					"InputParametersDef": inputParametersDef,
+					"InputVars":          inputVars,
+					"OutputReturnDef":    outputReturnsDef,
+					"OutputVars":         outputVars,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			{
+				err := streamNodeTpl.Execute(w, map[string]interface{}{
+					"InCount":         i,
+					"OutCount":        o,
+					"GenericsTypeDef": genericsTypeDef,
+					"GenericsTypeRef": genericsTypeRef,
+				})
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
