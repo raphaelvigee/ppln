@@ -1,26 +1,44 @@
 package ppln
 
 import (
+	"fmt"
 	"testing"
 )
 
 func Test1(t *testing.T) {
-	counter := (Node1x2[string, int, error])(nil)
-	printer := (Node1x0[int])(nil)
-	complicatedPrinter := (Node2x0[int, int])(nil)
+	ch := make(chan struct{})
+	counter := NewFuncNode1x2(func(v1 string) (int, error) {
+		return len(v1), nil
+	})
+	printer := NewFuncNode1x0(func(v1 int) {
+		fmt.Println(v1)
+	})
+	complicatedPrinter := NewFuncNode2x0(func(v1, v2 int) {
+		fmt.Println(v1, v2)
+		close(ch)
+	})
 
-	DAG(
+	NewDAG(
 		Pipeline1(Take1(counter), printer),
 		Pipeline2(Take1(counter), Take1(counter), complicatedPrinter),
 	)
+
+	<-ch
 }
 
 func TestStream1(t *testing.T) {
+	//printer := NewFuncStreamNode0x1(func(emit func(v int)) {
+	//	for {
+	//		emit(1)
+	//		time.Sleep(time.Second)
+	//	}
+	//})
+
 	counter := (StreamNode1x2[string, int, error])(nil)
 	printer := (StreamNode1x0[int])(nil)
 	complicatedPrinter := (Node2x0[int, int])(nil)
 
-	DAG(
+	NewDAG(
 		Pipeline1(Take1(counter), printer),
 		Pipeline2(Take1(counter), Take1(counter), complicatedPrinter),
 	)

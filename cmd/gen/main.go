@@ -42,13 +42,23 @@ type Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 	{{- end}}
 }
 
-type FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
-	Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+type FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func({{.InputParametersDef}}) ({{.OutputReturnDef}})
 
-	Func func({{.InputParametersDef}}) ({{.OutputReturnDef}})
+func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}] {
+	return &funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]{Func: f}
 }
 
-func (f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any) []any {
+type funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
+	Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+
+	Func FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+}
+
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
+	return {{.InCount}}
+}
+
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any) []any {
 	{{- range $idx, $i := loop .InCount}}
 		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
 	{{- end}}
@@ -78,20 +88,30 @@ type StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 	{{- end}}
 }
 
-type FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
-	StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+type FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func(
+{{range $i := loop .InCount -}}
+	 I{{$i}},
+{{end -}}
+{{ range $idx, $i := loop .OutCount -}}
+	 func (v O{{$i}}),
+{{ end -}}
+)
 
-	Func func(
-	{{range $i := loop .InCount -}}
-		 I{{$i}},
-	{{end -}}
-	{{ range $idx, $i := loop .OutCount -}}
-		 func (v O{{$i}}),
-	{{ end -}}
-	)
+func NewFuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}] {
+	return &funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]{Func: f}
 }
 
-func (f FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
+type funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
+	StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+
+	Func FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+}
+
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
+	return {{.InCount}}
+}
+
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
 	{{- range $idx, $i := loop .InCount}}
 		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
 	{{- end}}
@@ -111,7 +131,11 @@ func (f FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(input
 
 var takeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 func Take{{.N}}[T any](n NodeOut{{.N}}[T]) NodeOut1[T] {
+	{{- if eq .N 1}}
+	return n
+	{{- else}}
 	panic("TODO")
+	{{- end}}
 }
 
 func Pipeline{{.N}}[{{g_generics "T" .N true}}]({{g_params "from" "NodeOut1[T#]" .N }}, to interface{ {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} }) []Edge {

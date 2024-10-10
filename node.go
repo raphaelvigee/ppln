@@ -2,6 +2,7 @@ package ppln
 
 type Node interface {
 	is_node()
+	Inputs() int
 }
 
 type BatchNode interface {
@@ -25,13 +26,4 @@ type Value struct {
 	Value   any
 	Index   int
 	Lineage struct{}
-}
-
-type NodeState struct {
-	Node   Node
-	Inputs []chan Value
-}
-
-func DAG(defs ...[]Edge) {
-	
 }
