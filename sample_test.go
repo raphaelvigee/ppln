@@ -6,6 +6,10 @@ import (
 	"github.com/dlsniper/debugger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
+	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -36,44 +40,119 @@ func TestSanity(t *testing.T) {
 	}
 }
 
+func TestFanOut(t *testing.T) {
+	debugger.SetLabels(func() []string {
+		return []string{"where", t.Name()}
+	})
+
+	var received atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	source := NewFuncNode0x1(func() string {
+		return "hello"
+	})
+	sink1 := NewFuncNode1x0(func(v1 string) {
+		defer wg.Done()
+
+		received.Add(int64(len(v1)))
+	})
+	sink2 := NewFuncNode1x0(func(v1 string) {
+		defer wg.Done()
+
+		received.Add(int64(len(v1)))
+	})
+
+	Pipeline1(source, sink1)
+	Pipeline1(source, sink2)
+
+	go source.Run()
+
+	wg.Wait()
+
+	assert.Equal(t, int64(10), received.Load())
+}
+
 func TestSanityMultipleOut(t *testing.T) {
 	debugger.SetLabels(func() []string {
 		return []string{"where", t.Name()}
 	})
 
 	chRes := make(chan string)
-	sink1Done := make(chan struct{})
 
-	source := NewFuncNode0x2(func() (string, string) {
-		return "hello", "world"
+	source := NewFuncStreamNode3x2(func(v string, delay1, delay2 time.Duration, emit1 func(string), emit2 func(string)) {
+		var g errgroup.Group
+		g.Go(func() error {
+			time.Sleep(delay1)
+
+			emit1("1:" + v)
+
+			return nil
+		})
+
+		g.Go(func() error {
+			time.Sleep(delay2)
+
+			emit2("2:" + v)
+
+			return nil
+		})
+
+		_ = g.Wait()
 	})
-	sink1 := NewFuncNode1x0(func(v1 string) {
-		defer close(sink1Done)
-		chRes <- v1
-	})
-	sink2 := NewFuncNode1x0(func(v1 string) {
-		<-sink1Done
-		chRes <- v1
+	sink := NewFuncNode2x0(func(v1, v2 string) {
+		chRes <- v1 + " " + v2
 	})
 
-	Pipeline1(Take1(source), sink1)
-	Pipeline1(Take2(source), sink2)
+	Pipeline2(Take1(source), Take2(source), sink)
 
-	go source.Run()
+	go source.Run("hello", 0, time.Second)
+	go source.Run("world", time.Second, 0)
 
-	select {
-	case res1 := <-chRes:
-		assert.Equal(t, "hello", res1)
-		select {
-		case res2 := <-chRes:
-			assert.Equal(t, "world", res2)
-		case <-time.After(time.Second):
-			require.Fail(t, "did not receive message 2")
-		}
-	case <-time.After(time.Second):
-		require.Fail(t, "did not receive message 1")
-	}
+	res1 := <-chRes
+	res2 := <-chRes
+
+	res := []string{res1, res2}
+	slices.Sort(res)
+
+	assert.Equal(t, "1:hello 1:hello", res[0])
+	assert.Equal(t, "2:world 2:world", res[1])
 }
+
+//func TestSanityMultipleInput(t *testing.T) {
+//	debugger.SetLabels(func() []string {
+//		return []string{"where", t.Name()}
+//	})
+//
+//	chRes := make(chan string)
+//	sink1Done := make(chan struct{})
+//
+//	source := NewFuncNode0x1(func() string {
+//		return "hello"
+//	})
+//	sink1 := NewFuncNode1x0(func(v1 string) {
+//		defer close(sink1Done)
+//		chRes <- v1
+//	})
+//
+//	Pipeline1(Take1(source), sink1)
+//	Pipeline1(Take2(source), sink2)
+//
+//	go source.Run()
+//
+//	select {
+//	case res1 := <-chRes:
+//		assert.Equal(t, "hello", res1)
+//		select {
+//		case res2 := <-chRes:
+//			assert.Equal(t, "world", res2)
+//		case <-time.After(time.Second):
+//			require.Fail(t, "did not receive message 2")
+//		}
+//	case <-time.After(time.Second):
+//		require.Fail(t, "did not receive message 1")
+//	}
+//}
 
 func Test1(t *testing.T) {
 	ch := make(chan struct{})
