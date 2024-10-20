@@ -20,11 +20,11 @@ func TestSanity(t *testing.T) {
 	source := NewFuncNode0x1(func() string {
 		return "hello"
 	})
-	counter := NewFuncNode1x0(func(v1 string) {
+	sink := NewFuncNode1x0(func(v1 string) {
 		chRes <- v1
 	})
 
-	Pipeline1(source, counter)
+	Pipeline1(source, sink)
 
 	go source.Run()
 
@@ -33,6 +33,45 @@ func TestSanity(t *testing.T) {
 		assert.Equal(t, "hello", res)
 	case <-time.After(time.Second):
 		require.Fail(t, "did not receive message")
+	}
+}
+
+func TestSanityMultipleOut(t *testing.T) {
+	debugger.SetLabels(func() []string {
+		return []string{"where", t.Name()}
+	})
+
+	chRes := make(chan string)
+	sink1Done := make(chan struct{})
+
+	source := NewFuncNode0x2(func() (string, string) {
+		return "hello", "world"
+	})
+	sink1 := NewFuncNode1x0(func(v1 string) {
+		defer close(sink1Done)
+		chRes <- v1
+	})
+	sink2 := NewFuncNode1x0(func(v1 string) {
+		<-sink1Done
+		chRes <- v1
+	})
+
+	Pipeline1(Take1(source), sink1)
+	Pipeline1(Take2(source), sink2)
+
+	go source.Run()
+
+	select {
+	case res1 := <-chRes:
+		assert.Equal(t, "hello", res1)
+		select {
+		case res2 := <-chRes:
+			assert.Equal(t, "world", res2)
+		case <-time.After(time.Second):
+			require.Fail(t, "did not receive message 2")
+		}
+	case <-time.After(time.Second):
+		require.Fail(t, "did not receive message 1")
 	}
 }
 
