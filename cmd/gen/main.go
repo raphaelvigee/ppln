@@ -19,19 +19,28 @@ type NodeIn{{.N}}[T any] interface {
 
 	_input{{.N}}(T)
 }
+
+type NodeHas{{.N}}In interface {
+	Node
+
+	_input_layout({{g_params "" "any" .N }})
+}
 `))
 
 var ifaceOutTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 type NodeOut{{.N}}[T any] interface {
-	Node
-
 	_output{{.N}}(T)
+}
+type NodeHas{{.N}}Out interface {
+	_out_layout({{g_params "" "any" .N }})
 }
 `))
 
 var nodeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 type Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 	Node
+	NodeHas{{.InCount}}In
+	NodeHas{{.OutCount}}Out
 
 	{{range $i := loop .InCount}}
 		 NodeIn{{$i}}[I{{$i}}]
@@ -40,44 +49,73 @@ type Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 	{{range $i := loop .OutCount}}
 		 NodeOut{{$i}}[O{{$i}}]
 	{{- end}}
+
+	Run({{.InputParametersDef}})
 }
 
 type FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func({{.InputParametersDef}}) ({{.OutputReturnDef}})
 
 func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}] {
-	return &funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]{Func: f}
+	return &funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]{
+		Func: f,
+	}
 }
 
 type funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
 	Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
 
 	Func FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+
+	machineryOnce sync.Once
+	machinery *NodeMachinery
 }
 
 func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
 	return {{.InCount}}
 }
 
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any) []any {
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Outputs() int {
+	return {{.OutCount}}
+}
+
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.InputParametersDef}}) {
+	f.Machinery().NewSourceRun(
+		{{- range $idx, $i := loop .InCount}}
+		 v{{$i}},
+		{{- end}}
+	)
+}
+
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Machinery() *NodeMachinery {
+	f.machineryOnce.Do(func() {
+		f.machinery = NewNodeMachinery(f)
+	})
+
+	return f.machinery
+}
+
+func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
 	{{- range $idx, $i := loop .InCount}}
 		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
 	{{- end}}
 
-	{{if gt .OutCount 0}}
+	{{- if gt .OutCount 0}}
 		{{.OutputVars}} := f.Func({{.InputVars}})
-	
-		return []any{ {{.OutputVars}} }
+
+		{{- range $idx, $i := loop .OutCount }}
+			emit({{$idx}}, v{{$i}})
+		{{ end -}}
 	{{- else}}
 		f.Func({{.InputVars}})
-
-		return nil
-	{{- end}}
+	{{- end -}}
 }
 `))
 
 var streamNodeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 type StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
-	StreamNode
+	Node
+	NodeHas{{.InCount}}In
+	NodeHas{{.OutCount}}Out
 
 	{{range $i := loop .InCount}}
 		 NodeIn{{$i}}[I{{$i}}]
@@ -86,14 +124,16 @@ type StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
 	{{range $i := loop .OutCount}}
 		 NodeOut{{$i}}[O{{$i}}]
 	{{- end}}
+
+	Run({{.InputParametersDef}})
 }
 
 type FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func(
 {{range $i := loop .InCount -}}
-	 I{{$i}},
+	 _ I{{$i}},
 {{end -}}
 {{ range $idx, $i := loop .OutCount -}}
-	 func (v O{{$i}}),
+	 emit{{$i}} func (O{{$i}}),
 {{ end -}}
 )
 
@@ -105,10 +145,33 @@ type funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
 	StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
 
 	Func FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
+
+	machineryOnce sync.Once
+	machinery *NodeMachinery
 }
 
 func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
 	return {{.InCount}}
+}
+
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Outputs() int {
+	return {{.OutCount}}
+}
+
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Machinery() *NodeMachinery {
+	f.machineryOnce.Do(func() {
+		f.machinery = NewNodeMachinery(f)
+	})
+
+	return f.machinery
+}
+
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.InputParametersDef}}) {
+	f.Machinery().NewSourceRun(
+		{{- range $idx, $i := loop .InCount}}
+		 v{{$i}},
+		{{- end}}
+	)
 }
 
 func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
@@ -130,23 +193,17 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inpu
 `))
 
 var takeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
-func Take{{.N}}[T any](n NodeOut{{.N}}[T]) NodeOut1[T] {
-	{{- if eq .N 1}}
-	return n
-	{{- else}}
-	panic("TODO")
-	{{- end}}
+func Take{{.N}}[T any](n interface{Node; NodeOut{{.N}}[T]}) interface{Node; NodeOut1[T]; NodeHas1Out } {
+	return TakeN[T](n, {{.N}})
 }
 
-func Pipeline{{.N}}[{{g_generics "T" .N true}}]({{g_params "from" "NodeOut1[T#]" .N }}, to interface{ {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} }) []Edge {
-	return []Edge{
+func Pipeline{{.N}}[{{g_generics "T" .N true}}]({{g_params "from" "interface{Node; NodeOut1[T#]; NodeHas1Out}" .N }}, to interface{ Node; NodeHas{{.N}}In; {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} }) {
+	Pipeline(
+		to,
 	{{- range $idx, $i := loop .N}}
-		{
-			From: from{{$i}},
-			To:   to,
-		},
+		from{{$i}},
 	{{- end}}
-	}
+	)
 }
 `))
 
@@ -239,7 +296,7 @@ func gen(w io.Writer, c Config) error {
 	ic := c.InputCount
 	oc := c.OutputCount
 
-	for i := range loop(ic, false) {
+	for i := range loop(ic, true) {
 		err := ifaceInTpl.Execute(w, map[string]interface{}{
 			"N": i,
 		})
@@ -299,11 +356,14 @@ func gen(w io.Writer, c Config) error {
 			}
 
 			{
+				inputParametersDef := genParametersList("", "v", "I", i)
+
 				err := streamNodeTpl.Execute(w, map[string]interface{}{
-					"InCount":         i,
-					"OutCount":        o,
-					"GenericsTypeDef": genericsTypeDef,
-					"GenericsTypeRef": genericsTypeRef,
+					"InCount":            i,
+					"OutCount":           o,
+					"InputParametersDef": inputParametersDef,
+					"GenericsTypeDef":    genericsTypeDef,
+					"GenericsTypeRef":    genericsTypeRef,
 				})
 				if err != nil {
 					return err
