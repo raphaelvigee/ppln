@@ -14,23 +14,24 @@ import (
 )
 
 var ifaceInTpl = template.Must(template.New("").Funcs(funcs).Parse(`
+{{- if gt .N 0}}
 type NodeIn{{.N}}[T any] interface {
-	Node
-
 	_input{{.N}}(T)
 }
+{{- end}}
 
 type NodeHas{{.N}}In interface {
-	Node
-
 	_input_layout({{g_params "" "any" .N }})
 }
 `))
 
 var ifaceOutTpl = template.Must(template.New("").Funcs(funcs).Parse(`
+{{- if gt .N 0}}
 type NodeOut{{.N}}[T any] interface {
 	_output{{.N}}(T)
 }
+{{- end}}
+
 type NodeHas{{.N}}Out interface {
 	_out_layout({{g_params "" "any" .N }})
 }
@@ -144,10 +145,13 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inpu
 
 var takeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
 func Take{{.N}}[T any](n interface{Node; NodeOut{{.N}}[T]}) interface{Node; NodeOut1[T]; NodeHas1Out } {
-	return TakeN[T](n, {{.N}})
+	return TakeN[T](n, {{.N}}-1)
 }
 
-func Pipeline{{.N}}[{{g_generics "T" .N true}}]({{g_params "from" "interface{Node; NodeOut1[T#]; NodeHas1Out}" .N }}, to interface{ Node; NodeHas{{.N}}In; {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} }) {
+func Pipeline{{.N}}[{{g_generics "T" .N true}}](
+	{{g_params "from" "interface{Node; NodeOut1[T#]; NodeHas1Out}" .N }},
+	to interface{ Node; NodeHas{{.N}}In; {{range $i := loop .N}} NodeIn{{$i}}[T{{$i}}]; {{end}} },
+) {
 	Pipeline(
 		to,
 	{{- range $idx, $i := loop .N}}
@@ -255,14 +259,16 @@ func gen(w io.Writer, c Config) error {
 		}
 	}
 
-	for i := range loop(oc, false) {
+	for i := range loop(oc, true) {
 		err := ifaceOutTpl.Execute(w, map[string]interface{}{
 			"N": i,
 		})
 		if err != nil {
 			return err
 		}
+	}
 
+	for i := range loop(oc, false) {
 		err = takeTpl.Execute(w, map[string]interface{}{
 			"N": i,
 		})

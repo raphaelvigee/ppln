@@ -2,59 +2,60 @@ package ppln
 
 import "sync"
 
-type NodeIn0[T any] interface {
-	Node
-
-	_input0(T)
-}
-
 type NodeHas0In interface {
-	Node
-
 	_input_layout()
 }
 
 type NodeIn1[T any] interface {
-	Node
-
 	_input1(T)
 }
 
 type NodeHas1In interface {
-	Node
-
 	_input_layout(any)
 }
 
 type NodeIn2[T any] interface {
-	Node
-
 	_input2(T)
 }
 
 type NodeHas2In interface {
-	Node
-
 	_input_layout(any, any)
 }
 
 type NodeIn3[T any] interface {
-	Node
-
 	_input3(T)
 }
 
 type NodeHas3In interface {
-	Node
-
 	_input_layout(any, any, any)
+}
+
+type NodeHas0Out interface {
+	_out_layout()
 }
 
 type NodeOut1[T any] interface {
 	_output1(T)
 }
+
 type NodeHas1Out interface {
 	_out_layout(any)
+}
+
+type NodeOut2[T any] interface {
+	_output2(T)
+}
+
+type NodeHas2Out interface {
+	_out_layout(any, any)
+}
+
+type NodeOut3[T any] interface {
+	_output3(T)
+}
+
+type NodeHas3Out interface {
+	_out_layout(any, any, any)
 }
 
 func Take1[T any](n interface {
@@ -65,29 +66,25 @@ func Take1[T any](n interface {
 	NodeOut1[T]
 	NodeHas1Out
 } {
-	return TakeN[T](n, 1)
+	return TakeN[T](n, 1-1)
 }
 
-func Pipeline1[T1 any](from1 interface {
-	Node
-	NodeOut1[T1]
-	NodeHas1Out
-}, to interface {
-	Node
-	NodeHas1In
-	NodeIn1[T1]
-}) {
+func Pipeline1[T1 any](
+	from1 interface {
+		Node
+		NodeOut1[T1]
+		NodeHas1Out
+	},
+	to interface {
+		Node
+		NodeHas1In
+		NodeIn1[T1]
+	},
+) {
 	Pipeline(
 		to,
 		from1,
 	)
-}
-
-type NodeOut2[T any] interface {
-	_output2(T)
-}
-type NodeHas2Out interface {
-	_out_layout(any, any)
 }
 
 func Take2[T any](n interface {
@@ -98,35 +95,31 @@ func Take2[T any](n interface {
 	NodeOut1[T]
 	NodeHas1Out
 } {
-	return TakeN[T](n, 2)
+	return TakeN[T](n, 2-1)
 }
 
-func Pipeline2[T1 any, T2 any](from1 interface {
-	Node
-	NodeOut1[T1]
-	NodeHas1Out
-}, from2 interface {
-	Node
-	NodeOut1[T2]
-	NodeHas1Out
-}, to interface {
-	Node
-	NodeHas2In
-	NodeIn1[T1]
-	NodeIn2[T2]
-}) {
+func Pipeline2[T1 any, T2 any](
+	from1 interface {
+		Node
+		NodeOut1[T1]
+		NodeHas1Out
+	}, from2 interface {
+		Node
+		NodeOut1[T2]
+		NodeHas1Out
+	},
+	to interface {
+		Node
+		NodeHas2In
+		NodeIn1[T1]
+		NodeIn2[T2]
+	},
+) {
 	Pipeline(
 		to,
 		from1,
 		from2,
 	)
-}
-
-type NodeOut3[T any] interface {
-	_output3(T)
-}
-type NodeHas3Out interface {
-	_out_layout(any, any, any)
 }
 
 func Take3[T any](n interface {
@@ -137,28 +130,31 @@ func Take3[T any](n interface {
 	NodeOut1[T]
 	NodeHas1Out
 } {
-	return TakeN[T](n, 3)
+	return TakeN[T](n, 3-1)
 }
 
-func Pipeline3[T1 any, T2 any, T3 any](from1 interface {
-	Node
-	NodeOut1[T1]
-	NodeHas1Out
-}, from2 interface {
-	Node
-	NodeOut1[T2]
-	NodeHas1Out
-}, from3 interface {
-	Node
-	NodeOut1[T3]
-	NodeHas1Out
-}, to interface {
-	Node
-	NodeHas3In
-	NodeIn1[T1]
-	NodeIn2[T2]
-	NodeIn3[T3]
-}) {
+func Pipeline3[T1 any, T2 any, T3 any](
+	from1 interface {
+		Node
+		NodeOut1[T1]
+		NodeHas1Out
+	}, from2 interface {
+		Node
+		NodeOut1[T2]
+		NodeHas1Out
+	}, from3 interface {
+		Node
+		NodeOut1[T3]
+		NodeHas1Out
+	},
+	to interface {
+		Node
+		NodeHas3In
+		NodeIn1[T1]
+		NodeIn2[T2]
+		NodeIn3[T3]
+	},
+) {
 	Pipeline(
 		to,
 		from1,

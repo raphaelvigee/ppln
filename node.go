@@ -29,14 +29,6 @@ type Value struct {
 	ID    uint64
 }
 
-type NodeHas0Out interface { //TODO: remove & codegen
-	_output_layout()
-}
-
-type NodeValueMiddleware interface {
-	NodeOnValueMiddleware(f Listener) Listener
-}
-
 type NodeValueMapper interface {
 	ValueMapper(v Value) []Value
 }
@@ -46,16 +38,6 @@ type TakeNode[T any] struct {
 	NodeHas1Out
 	Node
 	N int
-}
-
-func (t TakeNode[T]) NodeOnValueMiddleware(f Listener) Listener {
-	return func(i int, v Value) {
-		if i != t.N {
-			return
-		}
-
-		f(0, v)
-	}
 }
 
 func (t TakeNode[T]) ValueMapper(v Value) []Value {
@@ -69,7 +51,6 @@ func (t TakeNode[T]) ValueMapper(v Value) []Value {
 }
 
 var _ Node = (*TakeNode[any])(nil)
-var _ NodeValueMiddleware = (*TakeNode[any])(nil)
 
 func TakeN[T any](node Node, n int) interface {
 	Node
@@ -106,7 +87,16 @@ func Pipeline(to Node, from ...interface {
 			wg.Done()
 
 			for v := range ch {
-				to.Machinery().Incoming(i, v)
+				if m, ok := from.(NodeValueMapper); ok {
+					vs := m.ValueMapper(v)
+
+					for _, v := range vs {
+						to.Machinery().Incoming(i, v)
+					}
+				} else {
+					to.Machinery().Incoming(i, v)
+				}
+
 			}
 		}()
 	}

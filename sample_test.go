@@ -40,6 +40,28 @@ func TestSanity(t *testing.T) {
 	}
 }
 
+func TestSanityTake(t *testing.T) {
+	debugger.SetLabels(func() []string {
+		return []string{"where", t.Name()}
+	})
+
+	chRes2 := make(chan string)
+
+	source := NewFuncNode0x2(func() (string, string) {
+		return "hello", "world"
+	})
+	sink2 := NewFuncNode1x0(func(v1 string) {
+		chRes2 <- v1
+	})
+
+	Pipeline1(Take2(source), sink2)
+
+	go source.Run()
+
+	res2 := <-chRes2
+	assert.Equal(t, "world", res2)
+}
+
 func TestFanOut(t *testing.T) {
 	debugger.SetLabels(func() []string {
 		return []string{"where", t.Name()}
@@ -115,8 +137,8 @@ func TestSanityMultipleInOut(t *testing.T) {
 	res := []string{res1, res2}
 	slices.Sort(res)
 
-	assert.Equal(t, "1:hello 1:hello", res[0])
-	assert.Equal(t, "2:world 2:world", res[1])
+	assert.Equal(t, "1:hello 2:hello", res[0])
+	assert.Equal(t, "1:world 2:world", res[1])
 }
 
 func Test5(t *testing.T) {
