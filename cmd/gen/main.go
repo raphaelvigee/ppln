@@ -36,78 +36,28 @@ type NodeHas{{.N}}Out interface {
 }
 `))
 
-var nodeTpl = template.Must(template.New("").Funcs(funcs).Parse(`
-type Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] interface {
-	Node
-	NodeHas{{.InCount}}In
-	NodeHas{{.OutCount}}Out
-
-	{{range $i := loop .InCount}}
-		 NodeIn{{$i}}[I{{$i}}]
-	{{- end}}
-
-	{{range $i := loop .OutCount}}
-		 NodeOut{{$i}}[O{{$i}}]
-	{{- end}}
-
-	Run({{.InputParametersDef}})
-}
-
+var nodeTpl = template.Must(template.New("").Funcs(funcs).Parse(` 
 type FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func({{.InputParametersDef}}) ({{.OutputReturnDef}})
 
-func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}] {
-	return &funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]{
-		Func: f,
-	}
-}
-
-type funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
-	Node{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
-
-	Func FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]
-
-	machineryOnce sync.Once
-	machinery *NodeMachinery
-}
-
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
-	return {{.InCount}}
-}
-
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Outputs() int {
-	return {{.OutCount}}
-}
-
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.InputParametersDef}}) {
-	f.Machinery().NewSourceRun(
-		{{- range $idx, $i := loop .InCount}}
-		 v{{$i}},
-		{{- end}}
-	)
-}
-
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Machinery() *NodeMachinery {
-	f.machineryOnce.Do(func() {
-		f.machinery = NewNodeMachinery(f)
-	})
-
-	return f.machinery
-}
-
-func (f *funcNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
-	{{- range $idx, $i := loop .InCount}}
-		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
-	{{- end}}
-
-	{{- if gt .OutCount 0}}
-		{{.OutputVars}} := f.Func({{.InputVars}})
-
-		{{- range $idx, $i := loop .OutCount }}
-			emit({{$idx}}, v{{$i}})
+func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) StreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}] {
+	return NewFuncStreamNode{{.InCount}}x{{.OutCount}}(func(
+		{{range $i := loop .InCount -}}
+			 i{{$i}} I{{$i}},
+		{{end -}}
+		{{ range $idx, $i := loop .OutCount -}}
+			 emit{{$i}} func (O{{$i}}),
 		{{ end -}}
-	{{- else}}
-		f.Func({{.InputVars}})
-	{{- end -}}
+	) {
+		{{- if gt .OutCount 0}}
+			{{.OutputVars}} := f({{.InputVars}})
+	
+			{{- range $idx, $i := loop .OutCount }}
+				emit{{$i}}(v{{$i}})
+			{{ end -}}
+		{{- else}}
+			f({{.InputVars}})
+		{{- end -}}
+	})
 }
 `))
 

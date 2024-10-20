@@ -94,17 +94,6 @@ func Pipeline(to Node, from ...interface {
 	for i, from := range from {
 		wg.Add(1)
 
-		//go func() {
-		//	l := func(_ int, v Value) {
-		//		to.Machinery().Incoming(i, v)
-		//	}
-		//	if m, ok := from.(NodeValueMiddleware); ok {
-		//		l = m.NodeOnValueMiddleware(l)
-		//	}
-		//
-		//	from.Machinery().OnValue(ctx, l)
-		//}()
-
 		go func() {
 			debugger.SetLabels(func() []string {
 				return []string{"where", fmt.Sprintf("Pipeline %p (%v) -> %p", from, i, to)}
@@ -229,29 +218,6 @@ func (m *NodeMachinery) Listen(ctx context.Context) chan Value {
 	}()
 
 	return ch
-}
-
-func (m *NodeMachinery) OnValue(ctx context.Context, f Listener) {
-	id := m.listenerc.Add(1)
-	if id == 0 {
-		panic("listener id wrapped around")
-	}
-
-	m.listenerm.Lock()
-	m.listeners = append(m.listeners, listenerContainer{
-		ID:   id,
-		Func: f,
-	})
-	m.listenerm.Unlock()
-
-	go func() {
-		<-ctx.Done()
-		m.listenerm.Lock()
-		m.listeners = slices.DeleteFunc(m.listeners, func(l listenerContainer) bool {
-			return l.ID == id
-		})
-		m.listenerm.Unlock()
-	}()
 }
 
 func (m *NodeMachinery) Incoming(i int, v Value) {
