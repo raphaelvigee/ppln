@@ -2,7 +2,7 @@ package ppln
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"github.com/dlsniper/debugger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,29 +141,26 @@ func TestSanityMultipleInOut(t *testing.T) {
 	assert.Equal(t, "1:world 2:world", res[1])
 }
 
-func Test5(t *testing.T) {
+func TestExamplePubSub(t *testing.T) {
 	type PSMessage struct {
 		Data []byte
-		ID   string
+		// Other fields like pubsub id
 	}
 
-	chErr := make(chan error)
-	chRes := make(chan int)
+	chErr := make(chan error, 1)
+	chRes := make(chan int, 1)
 
-	source := NewFuncStreamNode0x1(func(emit1 func(PSMessage)) {
-		for {
-			emit1(PSMessage{})
-		}
+	source := NewFuncNode0x1(func() PSMessage {
+		return PSMessage{Data: []byte(`hello`)}
 	})
 	root := NewFuncNode1x2(func(v1 PSMessage) (context.Context, []byte) {
 		return context.Background(), v1.Data
 	})
-
 	enrich1 := NewFuncNode2x2(func(ctx context.Context, data []byte) (int, error) {
 		return len(data), nil
 	})
 	enrich2 := NewFuncNode2x2(func(ctx context.Context, data []byte) (int, error) {
-		return len(data), nil
+		return 0, errors.New("went wrong")
 	})
 
 	store := NewFuncNode3x1(func(ctx context.Context, v1, v2 int) error {
@@ -171,8 +168,11 @@ func Test5(t *testing.T) {
 		return nil
 	})
 
-	errorSink := NewFuncNode1x0(func(err error) {
-		fmt.Println(err)
+	errorSink := FilterNode(func(v error) bool {
+		return v != nil
+	})
+
+	errorCollector := NewFuncNode1x0(func(err error) {
 		chErr <- err
 	})
 
@@ -189,12 +189,78 @@ func Test5(t *testing.T) {
 	Pipeline1(Take2(enrich2), errorSink)
 	Pipeline1(store, errorSink)
 
+	Pipeline1(errorSink, errorCollector)
+
 	go source.Run()
 
-	select {
-	case err := <-chErr:
-		require.NoError(t, err)
-	case res := <-chRes:
-		assert.Equal(t, 1, res)
-	}
+	err := <-chErr
+	assert.ErrorContains(t, err, "went wrong")
+	res := <-chRes
+	assert.Equal(t, 5, res)
 }
+
+// uncomment later
+//func TestSources(t *testing.T) {
+//	debugger.SetLabels(func() []string {
+//		return []string{"where", t.Name()}
+//	})
+//
+//	chRes := make(chan string)
+//
+//	type Message struct {
+//		Name   string
+//		Type   string
+//		Events []string
+//	}
+//
+//	source := NewFuncStreamNode0x1(func(emit1 func(Message)) {
+//		emit1(Message{
+//			Name:   "name1",
+//			Type:   "type1",
+//			Events: []string{"event1.1", "event1.2"},
+//		})
+//	}) // , NewSource(), WithOnDone(source, ackMsg)
+//	nameProducer := NewFuncNode1x1(func(v1 Message) string {
+//		return v1.Name
+//	}) //, WithNonBlocking(errorSink), WithQueueLength(10000)
+//	typeProducer := NewFuncNode1x1(func(v1 Message) string {
+//		return v1.Type
+//	})
+//	typeCurator := NewFuncNode1x1(func(v1 string) string {
+//		return strings.ToUpper(v1)
+//	})
+//	eventProducer := NewFuncStreamNode1x1(func(v1 Message, emit1 func(string)) {
+//		for _, e := range v1.Events {
+//			emit1(e)
+//		}
+//	})
+//	eventCurator := NewFuncNode1x1(func(v1 string) string {
+//		return strings.ToUpper(v1)
+//	})
+//
+//	eventSink := NewFuncNode3x0(func(name, typ, event string) {
+//		// does stuff
+//	})
+//
+//	//ackMsg := NewFuncNode1x0(func(v1 Message) {
+//	//	// v1.ack()
+//	//})
+//
+//	Pipeline1(source, nameProducer)
+//	Pipeline1(source, typeProducer)
+//	Pipeline1(source, eventProducer)
+//
+//	Pipeline1(typeProducer, typeCurator)
+//
+//	Pipeline1(eventProducer, eventCurator)
+//	Pipeline3(nameProducer, typeCurator, eventCurator, eventSink)
+//
+//	go source.Run()
+//
+//	select {
+//	case res := <-chRes:
+//		assert.Equal(t, "hello", res)
+//	case <-time.After(time.Second):
+//		require.Fail(t, "did not receive message")
+//	}
+//}

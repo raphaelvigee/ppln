@@ -448,7 +448,7 @@ func (f *funcStreamNode1x0[I1]) Run(v1 I1) {
 }
 
 func (f *funcStreamNode1x0[I1]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
+	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
@@ -520,7 +520,7 @@ func (f *funcStreamNode1x1[I1, O1]) Run(v1 I1) {
 }
 
 func (f *funcStreamNode1x1[I1, O1]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
+	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
@@ -600,7 +600,7 @@ func (f *funcStreamNode1x2[I1, O1, O2]) Run(v1 I1) {
 }
 
 func (f *funcStreamNode1x2[I1, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
+	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
@@ -688,7 +688,7 @@ func (f *funcStreamNode1x3[I1, O1, O2, O3]) Run(v1 I1) {
 }
 
 func (f *funcStreamNode1x3[I1, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
+	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
@@ -768,8 +768,8 @@ func (f *funcStreamNode2x0[I1, I2]) Run(v1 I1, v2 I2) {
 }
 
 func (f *funcStreamNode2x0[I1, I2]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
@@ -846,8 +846,8 @@ func (f *funcStreamNode2x1[I1, I2, O1]) Run(v1 I1, v2 I2) {
 }
 
 func (f *funcStreamNode2x1[I1, I2, O1]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
@@ -932,8 +932,8 @@ func (f *funcStreamNode2x2[I1, I2, O1, O2]) Run(v1 I1, v2 I2) {
 }
 
 func (f *funcStreamNode2x2[I1, I2, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
@@ -1026,8 +1026,8 @@ func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Run(v1 I1, v2 I2) {
 }
 
 func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
@@ -1112,9 +1112,9 @@ func (f *funcStreamNode3x0[I1, I2, I3]) Run(v1 I1, v2 I2, v3 I3) {
 }
 
 func (f *funcStreamNode3x0[I1, I2, I3]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
-	i3 := inputs[2].(I3)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
+	i3 := CastInput[I3](inputs[2])
 
 	f.Func(
 		i1,
@@ -1196,9 +1196,9 @@ func (f *funcStreamNode3x1[I1, I2, I3, O1]) Run(v1 I1, v2 I2, v3 I3) {
 }
 
 func (f *funcStreamNode3x1[I1, I2, I3, O1]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
-	i3 := inputs[2].(I3)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
+	i3 := CastInput[I3](inputs[2])
 
 	f.Func(
 		i1,
@@ -1288,9 +1288,9 @@ func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Run(v1 I1, v2 I2, v3 I3) {
 }
 
 func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
-	i3 := inputs[2].(I3)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
+	i3 := CastInput[I3](inputs[2])
 
 	f.Func(
 		i1,
@@ -1388,9 +1388,9 @@ func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Run(v1 I1, v2 I2, v3 I3) {
 }
 
 func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
-	i1 := inputs[0].(I1)
-	i2 := inputs[1].(I2)
-	i3 := inputs[2].(I3)
+	i1 := CastInput[I1](inputs[0])
+	i2 := CastInput[I2](inputs[1])
+	i3 := CastInput[I3](inputs[2])
 
 	f.Func(
 		i1,

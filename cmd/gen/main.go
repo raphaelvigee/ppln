@@ -127,7 +127,7 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.
 
 func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
 	{{- range $idx, $i := loop .InCount}}
-		 i{{$i}} := inputs[{{$idx}}].(I{{$i}})
+		 i{{$i}} := CastInput[I{{$i}}](inputs[{{$idx}}])
 	{{- end}}
 
 	f.Func(

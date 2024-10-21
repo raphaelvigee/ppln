@@ -10,7 +10,6 @@ import (
 )
 
 type Node interface {
-	is_node()
 	Inputs() int
 	Outputs() int
 
@@ -33,39 +32,88 @@ type NodeValueMapper interface {
 	ValueMapper(v Value) []Value
 }
 
-type TakeNode[T any] struct {
+type MapperNode[T any] struct {
 	NodeOut1[T]
 	NodeHas1Out
 	Node
-	N int
+
+	Func func(v Value) []Value
 }
 
-func (t TakeNode[T]) ValueMapper(v Value) []Value {
-	if v.Index != t.N {
-		return nil
+var _ Node = (*MapperNode[any])(nil)
+
+func (t MapperNode[T]) ValueMapper(v Value) []Value {
+	return t.Func(v)
+}
+
+type MappableNode[T any] interface {
+	Node
+	NodeOut1[T]
+	NodeHas1Out
+}
+
+func NewMapperNode[T any](node Node, f func(v Value) []Value) MappableNode[T] {
+	if m, ok := node.(NodeValueMapper); ok {
+		newf := f
+		f = func(v Value) []Value {
+			vs := m.ValueMapper(v)
+
+			if len(vs) == 0 {
+				return nil
+			}
+
+			var outvs []Value
+			for _, v := range vs {
+				outvs = append(outvs, newf(v)...)
+			}
+
+			return vs
+		}
 	}
 
-	v.Index = 0
-
-	return []Value{v}
-}
-
-var _ Node = (*TakeNode[any])(nil)
-
-func TakeN[T any](node Node, n int) interface {
-	Node
-	NodeOut1[T]
-	NodeHas1Out
-} {
-	return &TakeNode[T]{
+	return &MapperNode[T]{
 		Node: node,
-		N:    n,
+		Func: f,
 	}
+}
+
+func TakeN[T any](node Node, n int) MappableNode[T] {
+	return NewMapperNode[T](node, func(v Value) []Value {
+		if v.Index != n {
+			return nil
+		}
+
+		v.Index = 0
+
+		return []Value{v}
+	})
+}
+
+func Filter[T any](node Node, f func(v T) bool) MappableNode[T] {
+	return NewMapperNode[T](node, func(v Value) []Value {
+		if f(CastInput[T](v.Value)) {
+			return []Value{v}
+		}
+
+		return nil
+	})
+}
+
+func FilterNode[T any](f func(v T) bool) StreamNode1x1[T, T] {
+	return NewFuncStreamNode1x1[T, T](func(v T, emit1 func(T)) {
+		if f(v) {
+			emit1(v)
+		}
+	})
+}
+
+type Machinery interface {
+	Machinery() *NodeMachinery
 }
 
 //goland:noinspection GoVetLostCancel
-func Pipeline(to Node, from ...interface {
-	Node
+func Pipeline(to Machinery, from ...interface {
+	Machinery
 	NodeHas1Out
 }) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,10 +179,10 @@ type NodeMachinery struct {
 	stagedValues  map[uint64][]Value
 }
 
-var source atomic.Uint64
+var sourceId atomic.Uint64
 
 func (m *NodeMachinery) NewSourceRun(values ...any) {
-	id := source.Add(1)
+	id := sourceId.Add(1)
 
 	args := make([]Value, len(values))
 	for i, v := range values {
@@ -158,7 +206,7 @@ func (m *NodeMachinery) Run(values ...Value) {
 	if len(values) > 0 {
 		id = values[0].ID // TODO compose ids together from input
 	} else {
-		id = source.Add(1)
+		id = sourceId.Add(1)
 	}
 
 	m.n.Do(args, func(i int, v any) {
@@ -220,6 +268,10 @@ func (m *NodeMachinery) Incoming(i int, v Value) {
 }
 
 func (m *NodeMachinery) processIncoming(i int, v Value) ([]Value, bool) {
+	if m.n.Inputs() == 1 {
+		return []Value{v}, true
+	}
+
 	m.stagedValuesm.Lock()
 	defer m.stagedValuesm.Unlock()
 
@@ -247,4 +299,19 @@ func (m *NodeMachinery) processIncoming(i int, v Value) ([]Value, bool) {
 	m.stagedValues[v.ID] = values
 
 	return nil, false
+}
+
+func CastInput[T any](v any) T {
+	if v == nil {
+		var zero T
+
+		return zero
+	}
+
+	v2, ok := v.(T)
+	if !ok {
+		_ = v.(T)
+	}
+
+	return v2
 }
