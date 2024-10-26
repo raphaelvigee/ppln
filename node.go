@@ -4,16 +4,40 @@ import (
 	"context"
 	"fmt"
 	"github.com/dlsniper/debugger"
+	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
 
-type Node interface {
-	Inputs() int
-	Outputs() int
+type LineageRef struct {
+	lineage LineageID
+	m       sync.Mutex
+}
 
-	Do(values []any, emit func(i int, v any))
+func NewLineageRef() *LineageRef {
+	return &LineageRef{}
+}
+
+func (l *LineageRef) get(id LineageID) LineageID {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	if len(l.lineage) > 0 {
+		return l.lineage
+	}
+
+	l.lineage = append(id, sourceId.Add(1))
+
+	return l.lineage
+}
+
+type Node interface {
+	Inputs() uint8
+	Outputs() uint8
+
+	Do(values []any, emit func(i uint8, l *LineageRef, v any))
 	Machinery() *NodeMachinery
 }
 
@@ -22,10 +46,28 @@ type Edge struct {
 	To   Node
 }
 
+type LineageID []uint64
+
+func (self LineageID) Correlates(other LineageID) bool {
+	return self.correlates(other) || other.correlates(self)
+}
+
+func (self LineageID) correlates(other LineageID) bool {
+	if len(self) > len(other) {
+		return false
+	}
+
+	return slices.Equal(self, other[:len(self)])
+}
+
 type Value struct {
-	Value any
-	Index int
-	ID    uint64
+	Value   any
+	Index   uint8
+	Lineage LineageID
+}
+
+func (v Value) IsSet() bool {
+	return len(v.Lineage) > 0
 }
 
 type NodeValueMapper interface {
@@ -77,7 +119,7 @@ func NewMapperNode[T any](node Node, f func(v Value) []Value) MappableNode[T] {
 	}
 }
 
-func TakeN[T any](node Node, n int) MappableNode[T] {
+func TakeN[T any](node Node, n uint8) MappableNode[T] {
 	return NewMapperNode[T](node, func(v Value) []Value {
 		if v.Index != n {
 			return nil
@@ -89,20 +131,10 @@ func TakeN[T any](node Node, n int) MappableNode[T] {
 	})
 }
 
-func Filter[T any](node Node, f func(v T) bool) MappableNode[T] {
-	return NewMapperNode[T](node, func(v Value) []Value {
-		if f(CastInput[T](v.Value)) {
-			return []Value{v}
-		}
-
-		return nil
-	})
-}
-
-func FilterNode[T any](f func(v T) bool) StreamNode1x1[T, T] {
-	return NewFuncStreamNode1x1[T, T](func(v T, emit1 func(T)) {
+func Filter[T any](f func(v T) bool) StreamNode1x1[T, T] {
+	return NewFuncStreamNode1x1[T, T](func(v T, emit1 func(*LineageRef, T)) {
 		if f(v) {
-			emit1(v)
+			emit1(nil, v)
 		}
 	})
 }
@@ -144,7 +176,6 @@ func Pipeline(to Machinery, from ...interface {
 				} else {
 					to.Machinery().Incoming(i, v)
 				}
-
 			}
 		}()
 	}
@@ -154,12 +185,16 @@ func Pipeline(to Machinery, from ...interface {
 
 func NewNodeMachinery(n Node) *NodeMachinery {
 	return &NodeMachinery{
-		n:            n,
-		stagedValues: map[uint64][]Value{},
+		n: n,
+		stagedValues: valueStore{
+			mem:    map[string]Value{},
+			staged: nil,
+		},
+		id: sourceId.Add(1),
 	}
 }
 
-type Listener func(i int, v Value)
+type Listener func(i uint8, v Value)
 
 type listenerContainer struct {
 	ID   uint64
@@ -167,57 +202,92 @@ type listenerContainer struct {
 }
 
 type NodeMachinery struct {
-	n Node
+	n  Node
+	id uint64
 
 	listenerc atomic.Uint64
 	listeners []listenerContainer
-	listenerm sync.Mutex
+	listenerm sync.RWMutex
 
 	valueMiddleware Listener
 
 	stagedValuesm sync.Mutex
-	stagedValues  map[uint64][]Value
+	stagedValues  valueStore
 }
 
 var sourceId atomic.Uint64
 
 func (m *NodeMachinery) NewSourceRun(values ...any) {
-	id := sourceId.Add(1)
+	id := LineageID{sourceId.Add(1)}
 
 	args := make([]Value, len(values))
 	for i, v := range values {
 		args[i] = Value{
-			Value: v,
-			Index: i,
-			ID:    id,
+			Value:   v,
+			Index:   uint8(i),
+			Lineage: id,
 		}
 	}
 
 	m.Run(args...)
 }
 
-func (m *NodeMachinery) Run(values ...Value) {
-	args := make([]any, len(values))
-	for i, v := range values {
+func (m *NodeMachinery) Run(inputs ...Value) {
+	args := make([]any, len(inputs))
+	for i, v := range inputs {
 		args[i] = v.Value
 	}
 
-	var id uint64
-	if len(values) > 0 {
-		id = values[0].ID // TODO compose ids together from input
-	} else {
-		id = sourceId.Add(1)
+	var id LineageID
+	if m.n.Outputs() > 0 { // if we gonna need an id at some point
+		switch len(inputs) {
+		case 1:
+			id = inputs[0].Lineage
+			if len(id) == 0 {
+				panic("empty lineage")
+			}
+		default:
+			idm := map[uint64]struct{}{}
+			for _, value := range inputs {
+				for _, id := range value.Lineage {
+					idm[id] = struct{}{}
+				}
+			}
+			if len(idm) == 0 {
+				idm[sourceId.Add(1)] = struct{}{}
+			}
+
+			id = slices.Collect(maps.Keys(idm))
+			slices.Sort(id)
+
+			if len(id) == 0 {
+				panic("empty lineage")
+			}
+		}
 	}
 
-	m.n.Do(args, func(i int, v any) {
-		m.listenerm.Lock()
-		defer m.listenerm.Unlock()
+	m.n.Do(args, func(i uint8, l *LineageRef, v any) {
+		if i >= m.n.Outputs() {
+			panic(fmt.Sprintf("trying to output %v, but node has %v outputs", i, m.n.Outputs()))
+		}
+
+		if len(id) == 0 {
+			panic("empty lineage")
+		}
+
+		emitId := id
+		if l != nil {
+			emitId = l.get(id)
+		}
+
+		m.listenerm.RLock()
+		defer m.listenerm.RUnlock()
 
 		for _, l := range m.listeners {
 			l.Func(i, Value{
-				Value: v,
-				Index: i,
-				ID:    id,
+				Value:   v,
+				Index:   i,
+				Lineage: emitId,
 			})
 		}
 	})
@@ -234,7 +304,7 @@ func (m *NodeMachinery) Listen(ctx context.Context) chan Value {
 	m.listenerm.Lock()
 	m.listeners = append(m.listeners, listenerContainer{
 		ID: id,
-		Func: func(i int, v Value) {
+		Func: func(i uint8, v Value) {
 			ch <- v
 		},
 	})
@@ -267,7 +337,97 @@ func (m *NodeMachinery) Incoming(i int, v Value) {
 	m.Run(values...)
 }
 
+type valueStore struct {
+	mem    map[string]Value
+	staged [][]Value
+}
+
+func (s *valueStore) strid(id LineageID) string {
+	ids := make([]string, len(id))
+	for i, v := range id {
+		ids[i] = fmt.Sprint(v)
+	}
+
+	return strings.Join(ids, ",")
+}
+
+func (s *valueStore) set(incoming Value, cap uint8) []Value {
+	s.mem[s.strid(incoming.Lineage)] = incoming
+
+	for stagedIdx, inputs := range s.staged {
+		valueAtIndex := inputs[incoming.Index]
+
+		if !valueAtIndex.IsSet() {
+			allSet := true
+			compatible := true
+			for _, value := range inputs {
+				if !value.IsSet() {
+					if value.Index != incoming.Index {
+						allSet = false
+					}
+				} else {
+					if !incoming.Lineage.Correlates(value.Lineage) {
+						compatible = false
+						break
+					}
+				}
+			}
+
+			if compatible {
+				if allSet {
+					inputs[incoming.Index] = incoming
+
+					s.staged = slices.Delete(s.staged, stagedIdx, stagedIdx+1)
+
+					return inputs
+				} else {
+					inputs[incoming.Index] = incoming
+
+					s.staged[stagedIdx] = inputs
+
+					return nil
+				}
+			}
+		}
+	}
+
+	values := make([]Value, cap)
+	for i, value := range values {
+		value.Index = uint8(i)
+		values[i] = value
+	}
+	values[incoming.Index] = incoming
+
+	for _, value := range s.mem {
+		if values[value.Index].IsSet() {
+			continue
+		}
+
+		if value.Lineage.Correlates(incoming.Lineage) {
+			values[value.Index] = value
+		}
+	}
+
+	allSet := true
+	for _, value := range values {
+		if !value.IsSet() {
+			allSet = false
+			break
+		}
+	}
+
+	if allSet {
+		return values
+	}
+
+	s.staged = append(s.staged, values)
+
+	return nil
+}
+
 func (m *NodeMachinery) processIncoming(i int, v Value) ([]Value, bool) {
+	v.Index = uint8(i)
+
 	if m.n.Inputs() == 1 {
 		return []Value{v}, true
 	}
@@ -275,30 +435,9 @@ func (m *NodeMachinery) processIncoming(i int, v Value) ([]Value, bool) {
 	m.stagedValuesm.Lock()
 	defer m.stagedValuesm.Unlock()
 
-	values, ok := m.stagedValues[v.ID]
-	if !ok {
-		values = make([]Value, m.n.Inputs())
-	}
+	values := m.stagedValues.set(v, m.n.Inputs())
 
-	values[i] = v
-
-	allReady := true
-	for _, v := range values {
-		if v.ID == 0 {
-			allReady = false
-			break
-		}
-	}
-
-	if allReady {
-		delete(m.stagedValues, v.ID)
-
-		return values, true
-	}
-
-	m.stagedValues[v.ID] = values
-
-	return nil, false
+	return values, len(values) > 0
 }
 
 func CastInput[T any](v any) T {

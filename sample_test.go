@@ -40,6 +40,52 @@ func TestSanity(t *testing.T) {
 	}
 }
 
+func receive[T any](t *testing.T, ch chan T, n int, timeout time.Duration) []T {
+	t.Helper()
+
+	timeoutCh := time.After(timeout)
+
+	var out []T
+	for i := range n {
+		select {
+		case res := <-ch:
+			out = append(out, res)
+		case <-timeoutCh:
+			require.FailNowf(t, "did not receive", "failed to receive %v", i)
+			break
+		}
+	}
+
+	return out
+}
+
+func TestMemorySanity(t *testing.T) {
+	debugger.SetLabels(func() []string {
+		return []string{"where", t.Name()}
+	})
+
+	chRes := make(chan string)
+
+	source := NewFuncNode0x1(func() string {
+		return "hello"
+	})
+	multi := NewFuncStreamNode1x1(func(v string, emit1 func(*LineageRef, string)) {
+		emit1(NewLineageRef(), v+"1")
+		emit1(NewLineageRef(), v+"2")
+	})
+	sink := NewFuncNode2x0(func(v1 string, v2 string) {
+		chRes <- v1 + " " + v2
+	})
+
+	Pipeline1(source, multi)
+	Pipeline2(source, multi, sink)
+
+	go source.Run()
+
+	res := receive(t, chRes, 2, time.Second)
+	assert.EqualValues(t, []string{"hello hello1", "hello hello2"}, res)
+}
+
 func TestSanityTake(t *testing.T) {
 	debugger.SetLabels(func() []string {
 		return []string{"where", t.Name()}
@@ -102,12 +148,12 @@ func TestSanityMultipleInOut(t *testing.T) {
 
 	chRes := make(chan string)
 
-	source := NewFuncStreamNode3x2(func(v string, delay1, delay2 time.Duration, emit1 func(string), emit2 func(string)) {
+	source := NewFuncStreamNode3x2(func(v string, delay1, delay2 time.Duration, emit1 func(*LineageRef, string), emit2 func(*LineageRef, string)) {
 		var g errgroup.Group
 		g.Go(func() error {
 			time.Sleep(delay1)
 
-			emit1("1:" + v)
+			emit1(nil, "1:"+v)
 
 			return nil
 		})
@@ -115,7 +161,7 @@ func TestSanityMultipleInOut(t *testing.T) {
 		g.Go(func() error {
 			time.Sleep(delay2)
 
-			emit2("2:" + v)
+			emit2(nil, "2:"+v)
 
 			return nil
 		})
@@ -131,10 +177,7 @@ func TestSanityMultipleInOut(t *testing.T) {
 	go source.Run("hello", 0, time.Second)
 	go source.Run("world", time.Second, 0)
 
-	res1 := <-chRes
-	res2 := <-chRes
-
-	res := []string{res1, res2}
+	res := receive(t, chRes, 2, 5*time.Second)
 	slices.Sort(res)
 
 	assert.Equal(t, "1:hello 2:hello", res[0])
@@ -168,7 +211,7 @@ func TestExamplePubSub(t *testing.T) {
 		return nil
 	})
 
-	errorSink := FilterNode(func(v error) bool {
+	errorSink := Filter(func(v error) bool {
 		return v != nil
 	})
 
@@ -193,9 +236,9 @@ func TestExamplePubSub(t *testing.T) {
 
 	go source.Run()
 
-	err := <-chErr
+	err := receive(t, chErr, 1, 2*time.Second)[0]
 	assert.ErrorContains(t, err, "went wrong")
-	res := <-chRes
+	res := receive(t, chRes, 1, 2*time.Second)[0]
 	assert.Equal(t, 5, res)
 }
 

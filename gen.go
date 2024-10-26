@@ -167,10 +167,10 @@ type FuncNode0x1[O1 any] func() O1
 
 func NewFuncNode0x1[O1 any](f FuncNode0x1[O1]) StreamNode0x1[O1] {
 	return NewFuncStreamNode0x1(func(
-		emit1 func(O1),
+		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f()
-		emit1(v1)
+		emit1(nil, v1)
 	})
 }
 
@@ -185,7 +185,7 @@ type StreamNode0x1[O1 any] interface {
 }
 
 type FuncStreamNode0x1[O1 any] func(
-	emit1 func(O1),
+	emit1 func(*LineageRef, O1),
 )
 
 func NewFuncStreamNode0x1[O1 any](f FuncStreamNode0x1[O1]) StreamNode0x1[O1] {
@@ -201,11 +201,11 @@ type funcStreamNode0x1[O1 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode0x1[O1]) Inputs() int {
+func (f *funcStreamNode0x1[O1]) Inputs() uint8 {
 	return 0
 }
 
-func (f *funcStreamNode0x1[O1]) Outputs() int {
+func (f *funcStreamNode0x1[O1]) Outputs() uint8 {
 	return 1
 }
 
@@ -221,11 +221,11 @@ func (f *funcStreamNode0x1[O1]) Run() {
 	f.Machinery().NewSourceRun()
 }
 
-func (f *funcStreamNode0x1[O1]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode0x1[O1]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 
 	f.Func(
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
 	)
 }
@@ -234,13 +234,13 @@ type FuncNode0x2[O1 any, O2 any] func() (O1, O2)
 
 func NewFuncNode0x2[O1 any, O2 any](f FuncNode0x2[O1, O2]) StreamNode0x2[O1, O2] {
 	return NewFuncStreamNode0x2(func(
-		emit1 func(O1),
-		emit2 func(O2),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f()
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 	})
 }
 
@@ -256,8 +256,8 @@ type StreamNode0x2[O1 any, O2 any] interface {
 }
 
 type FuncStreamNode0x2[O1 any, O2 any] func(
-	emit1 func(O1),
-	emit2 func(O2),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
 )
 
 func NewFuncStreamNode0x2[O1 any, O2 any](f FuncStreamNode0x2[O1, O2]) StreamNode0x2[O1, O2] {
@@ -273,11 +273,11 @@ type funcStreamNode0x2[O1 any, O2 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode0x2[O1, O2]) Inputs() int {
+func (f *funcStreamNode0x2[O1, O2]) Inputs() uint8 {
 	return 0
 }
 
-func (f *funcStreamNode0x2[O1, O2]) Outputs() int {
+func (f *funcStreamNode0x2[O1, O2]) Outputs() uint8 {
 	return 2
 }
 
@@ -293,14 +293,14 @@ func (f *funcStreamNode0x2[O1, O2]) Run() {
 	f.Machinery().NewSourceRun()
 }
 
-func (f *funcStreamNode0x2[O1, O2]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode0x2[O1, O2]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 
 	f.Func(
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
 	)
 }
@@ -309,16 +309,16 @@ type FuncNode0x3[O1 any, O2 any, O3 any] func() (O1, O2, O3)
 
 func NewFuncNode0x3[O1 any, O2 any, O3 any](f FuncNode0x3[O1, O2, O3]) StreamNode0x3[O1, O2, O3] {
 	return NewFuncStreamNode0x3(func(
-		emit1 func(O1),
-		emit2 func(O2),
-		emit3 func(O3),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
+		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f()
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 
-		emit3(v3)
+		emit3(nil, v3)
 	})
 }
 
@@ -335,9 +335,9 @@ type StreamNode0x3[O1 any, O2 any, O3 any] interface {
 }
 
 type FuncStreamNode0x3[O1 any, O2 any, O3 any] func(
-	emit1 func(O1),
-	emit2 func(O2),
-	emit3 func(O3),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
+	emit3 func(*LineageRef, O3),
 )
 
 func NewFuncStreamNode0x3[O1 any, O2 any, O3 any](f FuncStreamNode0x3[O1, O2, O3]) StreamNode0x3[O1, O2, O3] {
@@ -353,11 +353,11 @@ type funcStreamNode0x3[O1 any, O2 any, O3 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode0x3[O1, O2, O3]) Inputs() int {
+func (f *funcStreamNode0x3[O1, O2, O3]) Inputs() uint8 {
 	return 0
 }
 
-func (f *funcStreamNode0x3[O1, O2, O3]) Outputs() int {
+func (f *funcStreamNode0x3[O1, O2, O3]) Outputs() uint8 {
 	return 3
 }
 
@@ -373,17 +373,17 @@ func (f *funcStreamNode0x3[O1, O2, O3]) Run() {
 	f.Machinery().NewSourceRun()
 }
 
-func (f *funcStreamNode0x3[O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode0x3[O1, O2, O3]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 
 	f.Func(
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
-		func(v O3) {
-			emit(2, v)
+		func(l *LineageRef, v O3) {
+			emit(2, l, v)
 		},
 	)
 }
@@ -425,11 +425,11 @@ type funcStreamNode1x0[I1 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode1x0[I1]) Inputs() int {
+func (f *funcStreamNode1x0[I1]) Inputs() uint8 {
 	return 1
 }
 
-func (f *funcStreamNode1x0[I1]) Outputs() int {
+func (f *funcStreamNode1x0[I1]) Outputs() uint8 {
 	return 0
 }
 
@@ -447,7 +447,7 @@ func (f *funcStreamNode1x0[I1]) Run(v1 I1) {
 	)
 }
 
-func (f *funcStreamNode1x0[I1]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode1x0[I1]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
@@ -460,10 +460,10 @@ type FuncNode1x1[I1 any, O1 any] func(v1 I1) O1
 func NewFuncNode1x1[I1 any, O1 any](f FuncNode1x1[I1, O1]) StreamNode1x1[I1, O1] {
 	return NewFuncStreamNode1x1(func(
 		i1 I1,
-		emit1 func(O1),
+		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1)
-		emit1(v1)
+		emit1(nil, v1)
 	})
 }
 
@@ -481,7 +481,7 @@ type StreamNode1x1[I1 any, O1 any] interface {
 
 type FuncStreamNode1x1[I1 any, O1 any] func(
 	_ I1,
-	emit1 func(O1),
+	emit1 func(*LineageRef, O1),
 )
 
 func NewFuncStreamNode1x1[I1 any, O1 any](f FuncStreamNode1x1[I1, O1]) StreamNode1x1[I1, O1] {
@@ -497,11 +497,11 @@ type funcStreamNode1x1[I1 any, O1 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode1x1[I1, O1]) Inputs() int {
+func (f *funcStreamNode1x1[I1, O1]) Inputs() uint8 {
 	return 1
 }
 
-func (f *funcStreamNode1x1[I1, O1]) Outputs() int {
+func (f *funcStreamNode1x1[I1, O1]) Outputs() uint8 {
 	return 1
 }
 
@@ -519,13 +519,13 @@ func (f *funcStreamNode1x1[I1, O1]) Run(v1 I1) {
 	)
 }
 
-func (f *funcStreamNode1x1[I1, O1]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode1x1[I1, O1]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
 	)
 }
@@ -535,13 +535,13 @@ type FuncNode1x2[I1 any, O1 any, O2 any] func(v1 I1) (O1, O2)
 func NewFuncNode1x2[I1 any, O1 any, O2 any](f FuncNode1x2[I1, O1, O2]) StreamNode1x2[I1, O1, O2] {
 	return NewFuncStreamNode1x2(func(
 		i1 I1,
-		emit1 func(O1),
-		emit2 func(O2),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 	})
 }
 
@@ -560,8 +560,8 @@ type StreamNode1x2[I1 any, O1 any, O2 any] interface {
 
 type FuncStreamNode1x2[I1 any, O1 any, O2 any] func(
 	_ I1,
-	emit1 func(O1),
-	emit2 func(O2),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
 )
 
 func NewFuncStreamNode1x2[I1 any, O1 any, O2 any](f FuncStreamNode1x2[I1, O1, O2]) StreamNode1x2[I1, O1, O2] {
@@ -577,11 +577,11 @@ type funcStreamNode1x2[I1 any, O1 any, O2 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode1x2[I1, O1, O2]) Inputs() int {
+func (f *funcStreamNode1x2[I1, O1, O2]) Inputs() uint8 {
 	return 1
 }
 
-func (f *funcStreamNode1x2[I1, O1, O2]) Outputs() int {
+func (f *funcStreamNode1x2[I1, O1, O2]) Outputs() uint8 {
 	return 2
 }
 
@@ -599,16 +599,16 @@ func (f *funcStreamNode1x2[I1, O1, O2]) Run(v1 I1) {
 	)
 }
 
-func (f *funcStreamNode1x2[I1, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode1x2[I1, O1, O2]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
 	)
 }
@@ -618,16 +618,16 @@ type FuncNode1x3[I1 any, O1 any, O2 any, O3 any] func(v1 I1) (O1, O2, O3)
 func NewFuncNode1x3[I1 any, O1 any, O2 any, O3 any](f FuncNode1x3[I1, O1, O2, O3]) StreamNode1x3[I1, O1, O2, O3] {
 	return NewFuncStreamNode1x3(func(
 		i1 I1,
-		emit1 func(O1),
-		emit2 func(O2),
-		emit3 func(O3),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
+		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 
-		emit3(v3)
+		emit3(nil, v3)
 	})
 }
 
@@ -647,9 +647,9 @@ type StreamNode1x3[I1 any, O1 any, O2 any, O3 any] interface {
 
 type FuncStreamNode1x3[I1 any, O1 any, O2 any, O3 any] func(
 	_ I1,
-	emit1 func(O1),
-	emit2 func(O2),
-	emit3 func(O3),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
+	emit3 func(*LineageRef, O3),
 )
 
 func NewFuncStreamNode1x3[I1 any, O1 any, O2 any, O3 any](f FuncStreamNode1x3[I1, O1, O2, O3]) StreamNode1x3[I1, O1, O2, O3] {
@@ -665,11 +665,11 @@ type funcStreamNode1x3[I1 any, O1 any, O2 any, O3 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode1x3[I1, O1, O2, O3]) Inputs() int {
+func (f *funcStreamNode1x3[I1, O1, O2, O3]) Inputs() uint8 {
 	return 1
 }
 
-func (f *funcStreamNode1x3[I1, O1, O2, O3]) Outputs() int {
+func (f *funcStreamNode1x3[I1, O1, O2, O3]) Outputs() uint8 {
 	return 3
 }
 
@@ -687,19 +687,19 @@ func (f *funcStreamNode1x3[I1, O1, O2, O3]) Run(v1 I1) {
 	)
 }
 
-func (f *funcStreamNode1x3[I1, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode1x3[I1, O1, O2, O3]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 
 	f.Func(
 		i1,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
-		func(v O3) {
-			emit(2, v)
+		func(l *LineageRef, v O3) {
+			emit(2, l, v)
 		},
 	)
 }
@@ -744,11 +744,11 @@ type funcStreamNode2x0[I1 any, I2 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode2x0[I1, I2]) Inputs() int {
+func (f *funcStreamNode2x0[I1, I2]) Inputs() uint8 {
 	return 2
 }
 
-func (f *funcStreamNode2x0[I1, I2]) Outputs() int {
+func (f *funcStreamNode2x0[I1, I2]) Outputs() uint8 {
 	return 0
 }
 
@@ -767,7 +767,7 @@ func (f *funcStreamNode2x0[I1, I2]) Run(v1 I1, v2 I2) {
 	)
 }
 
-func (f *funcStreamNode2x0[I1, I2]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode2x0[I1, I2]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 
@@ -783,10 +783,10 @@ func NewFuncNode2x1[I1 any, I2 any, O1 any](f FuncNode2x1[I1, I2, O1]) StreamNod
 	return NewFuncStreamNode2x1(func(
 		i1 I1,
 		i2 I2,
-		emit1 func(O1),
+		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1, i2)
-		emit1(v1)
+		emit1(nil, v1)
 	})
 }
 
@@ -806,7 +806,7 @@ type StreamNode2x1[I1 any, I2 any, O1 any] interface {
 type FuncStreamNode2x1[I1 any, I2 any, O1 any] func(
 	_ I1,
 	_ I2,
-	emit1 func(O1),
+	emit1 func(*LineageRef, O1),
 )
 
 func NewFuncStreamNode2x1[I1 any, I2 any, O1 any](f FuncStreamNode2x1[I1, I2, O1]) StreamNode2x1[I1, I2, O1] {
@@ -822,11 +822,11 @@ type funcStreamNode2x1[I1 any, I2 any, O1 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode2x1[I1, I2, O1]) Inputs() int {
+func (f *funcStreamNode2x1[I1, I2, O1]) Inputs() uint8 {
 	return 2
 }
 
-func (f *funcStreamNode2x1[I1, I2, O1]) Outputs() int {
+func (f *funcStreamNode2x1[I1, I2, O1]) Outputs() uint8 {
 	return 1
 }
 
@@ -845,15 +845,15 @@ func (f *funcStreamNode2x1[I1, I2, O1]) Run(v1 I1, v2 I2) {
 	)
 }
 
-func (f *funcStreamNode2x1[I1, I2, O1]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode2x1[I1, I2, O1]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
 		i2,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
 	)
 }
@@ -864,13 +864,13 @@ func NewFuncNode2x2[I1 any, I2 any, O1 any, O2 any](f FuncNode2x2[I1, I2, O1, O2
 	return NewFuncStreamNode2x2(func(
 		i1 I1,
 		i2 I2,
-		emit1 func(O1),
-		emit2 func(O2),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1, i2)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 	})
 }
 
@@ -891,8 +891,8 @@ type StreamNode2x2[I1 any, I2 any, O1 any, O2 any] interface {
 type FuncStreamNode2x2[I1 any, I2 any, O1 any, O2 any] func(
 	_ I1,
 	_ I2,
-	emit1 func(O1),
-	emit2 func(O2),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
 )
 
 func NewFuncStreamNode2x2[I1 any, I2 any, O1 any, O2 any](f FuncStreamNode2x2[I1, I2, O1, O2]) StreamNode2x2[I1, I2, O1, O2] {
@@ -908,11 +908,11 @@ type funcStreamNode2x2[I1 any, I2 any, O1 any, O2 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode2x2[I1, I2, O1, O2]) Inputs() int {
+func (f *funcStreamNode2x2[I1, I2, O1, O2]) Inputs() uint8 {
 	return 2
 }
 
-func (f *funcStreamNode2x2[I1, I2, O1, O2]) Outputs() int {
+func (f *funcStreamNode2x2[I1, I2, O1, O2]) Outputs() uint8 {
 	return 2
 }
 
@@ -931,18 +931,18 @@ func (f *funcStreamNode2x2[I1, I2, O1, O2]) Run(v1 I1, v2 I2) {
 	)
 }
 
-func (f *funcStreamNode2x2[I1, I2, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode2x2[I1, I2, O1, O2]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
 		i2,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
 	)
 }
@@ -953,16 +953,16 @@ func NewFuncNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any](f FuncNode2x3[I1, I2
 	return NewFuncStreamNode2x3(func(
 		i1 I1,
 		i2 I2,
-		emit1 func(O1),
-		emit2 func(O2),
-		emit3 func(O3),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
+		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1, i2)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 
-		emit3(v3)
+		emit3(nil, v3)
 	})
 }
 
@@ -984,9 +984,9 @@ type StreamNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any] interface {
 type FuncStreamNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any] func(
 	_ I1,
 	_ I2,
-	emit1 func(O1),
-	emit2 func(O2),
-	emit3 func(O3),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
+	emit3 func(*LineageRef, O3),
 )
 
 func NewFuncStreamNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any](f FuncStreamNode2x3[I1, I2, O1, O2, O3]) StreamNode2x3[I1, I2, O1, O2, O3] {
@@ -1002,11 +1002,11 @@ type funcStreamNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Inputs() int {
+func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Inputs() uint8 {
 	return 2
 }
 
-func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Outputs() int {
+func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Outputs() uint8 {
 	return 3
 }
 
@@ -1025,21 +1025,21 @@ func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Run(v1 I1, v2 I2) {
 	)
 }
 
-func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode2x3[I1, I2, O1, O2, O3]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 
 	f.Func(
 		i1,
 		i2,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
-		func(v O3) {
-			emit(2, v)
+		func(l *LineageRef, v O3) {
+			emit(2, l, v)
 		},
 	)
 }
@@ -1087,11 +1087,11 @@ type funcStreamNode3x0[I1 any, I2 any, I3 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode3x0[I1, I2, I3]) Inputs() int {
+func (f *funcStreamNode3x0[I1, I2, I3]) Inputs() uint8 {
 	return 3
 }
 
-func (f *funcStreamNode3x0[I1, I2, I3]) Outputs() int {
+func (f *funcStreamNode3x0[I1, I2, I3]) Outputs() uint8 {
 	return 0
 }
 
@@ -1111,7 +1111,7 @@ func (f *funcStreamNode3x0[I1, I2, I3]) Run(v1 I1, v2 I2, v3 I3) {
 	)
 }
 
-func (f *funcStreamNode3x0[I1, I2, I3]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode3x0[I1, I2, I3]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 	i3 := CastInput[I3](inputs[2])
@@ -1130,10 +1130,10 @@ func NewFuncNode3x1[I1 any, I2 any, I3 any, O1 any](f FuncNode3x1[I1, I2, I3, O1
 		i1 I1,
 		i2 I2,
 		i3 I3,
-		emit1 func(O1),
+		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1, i2, i3)
-		emit1(v1)
+		emit1(nil, v1)
 	})
 }
 
@@ -1155,7 +1155,7 @@ type FuncStreamNode3x1[I1 any, I2 any, I3 any, O1 any] func(
 	_ I1,
 	_ I2,
 	_ I3,
-	emit1 func(O1),
+	emit1 func(*LineageRef, O1),
 )
 
 func NewFuncStreamNode3x1[I1 any, I2 any, I3 any, O1 any](f FuncStreamNode3x1[I1, I2, I3, O1]) StreamNode3x1[I1, I2, I3, O1] {
@@ -1171,11 +1171,11 @@ type funcStreamNode3x1[I1 any, I2 any, I3 any, O1 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode3x1[I1, I2, I3, O1]) Inputs() int {
+func (f *funcStreamNode3x1[I1, I2, I3, O1]) Inputs() uint8 {
 	return 3
 }
 
-func (f *funcStreamNode3x1[I1, I2, I3, O1]) Outputs() int {
+func (f *funcStreamNode3x1[I1, I2, I3, O1]) Outputs() uint8 {
 	return 1
 }
 
@@ -1195,7 +1195,7 @@ func (f *funcStreamNode3x1[I1, I2, I3, O1]) Run(v1 I1, v2 I2, v3 I3) {
 	)
 }
 
-func (f *funcStreamNode3x1[I1, I2, I3, O1]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode3x1[I1, I2, I3, O1]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 	i3 := CastInput[I3](inputs[2])
@@ -1204,8 +1204,8 @@ func (f *funcStreamNode3x1[I1, I2, I3, O1]) Do(inputs []any, emit func(i int, v 
 		i1,
 		i2,
 		i3,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
 	)
 }
@@ -1217,13 +1217,13 @@ func NewFuncNode3x2[I1 any, I2 any, I3 any, O1 any, O2 any](f FuncNode3x2[I1, I2
 		i1 I1,
 		i2 I2,
 		i3 I3,
-		emit1 func(O1),
-		emit2 func(O2),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1, i2, i3)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 	})
 }
 
@@ -1246,8 +1246,8 @@ type FuncStreamNode3x2[I1 any, I2 any, I3 any, O1 any, O2 any] func(
 	_ I1,
 	_ I2,
 	_ I3,
-	emit1 func(O1),
-	emit2 func(O2),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
 )
 
 func NewFuncStreamNode3x2[I1 any, I2 any, I3 any, O1 any, O2 any](f FuncStreamNode3x2[I1, I2, I3, O1, O2]) StreamNode3x2[I1, I2, I3, O1, O2] {
@@ -1263,11 +1263,11 @@ type funcStreamNode3x2[I1 any, I2 any, I3 any, O1 any, O2 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Inputs() int {
+func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Inputs() uint8 {
 	return 3
 }
 
-func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Outputs() int {
+func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Outputs() uint8 {
 	return 2
 }
 
@@ -1287,7 +1287,7 @@ func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Run(v1 I1, v2 I2, v3 I3) {
 	)
 }
 
-func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 	i3 := CastInput[I3](inputs[2])
@@ -1296,11 +1296,11 @@ func (f *funcStreamNode3x2[I1, I2, I3, O1, O2]) Do(inputs []any, emit func(i int
 		i1,
 		i2,
 		i3,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
 	)
 }
@@ -1312,16 +1312,16 @@ func NewFuncNode3x3[I1 any, I2 any, I3 any, O1 any, O2 any, O3 any](f FuncNode3x
 		i1 I1,
 		i2 I2,
 		i3 I3,
-		emit1 func(O1),
-		emit2 func(O2),
-		emit3 func(O3),
+		emit1 func(*LineageRef, O1),
+		emit2 func(*LineageRef, O2),
+		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1, i2, i3)
-		emit1(v1)
+		emit1(nil, v1)
 
-		emit2(v2)
+		emit2(nil, v2)
 
-		emit3(v3)
+		emit3(nil, v3)
 	})
 }
 
@@ -1345,9 +1345,9 @@ type FuncStreamNode3x3[I1 any, I2 any, I3 any, O1 any, O2 any, O3 any] func(
 	_ I1,
 	_ I2,
 	_ I3,
-	emit1 func(O1),
-	emit2 func(O2),
-	emit3 func(O3),
+	emit1 func(*LineageRef, O1),
+	emit2 func(*LineageRef, O2),
+	emit3 func(*LineageRef, O3),
 )
 
 func NewFuncStreamNode3x3[I1 any, I2 any, I3 any, O1 any, O2 any, O3 any](f FuncStreamNode3x3[I1, I2, I3, O1, O2, O3]) StreamNode3x3[I1, I2, I3, O1, O2, O3] {
@@ -1363,11 +1363,11 @@ type funcStreamNode3x3[I1 any, I2 any, I3 any, O1 any, O2 any, O3 any] struct {
 	machinery     *NodeMachinery
 }
 
-func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Inputs() int {
+func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Inputs() uint8 {
 	return 3
 }
 
-func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Outputs() int {
+func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Outputs() uint8 {
 	return 3
 }
 
@@ -1387,7 +1387,7 @@ func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Run(v1 I1, v2 I2, v3 I3) {
 	)
 }
 
-func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	i1 := CastInput[I1](inputs[0])
 	i2 := CastInput[I2](inputs[1])
 	i3 := CastInput[I3](inputs[2])
@@ -1396,14 +1396,14 @@ func (f *funcStreamNode3x3[I1, I2, I3, O1, O2, O3]) Do(inputs []any, emit func(i
 		i1,
 		i2,
 		i3,
-		func(v O1) {
-			emit(0, v)
+		func(l *LineageRef, v O1) {
+			emit(0, l, v)
 		},
-		func(v O2) {
-			emit(1, v)
+		func(l *LineageRef, v O2) {
+			emit(1, l, v)
 		},
-		func(v O3) {
-			emit(2, v)
+		func(l *LineageRef, v O3) {
+			emit(2, l, v)
 		},
 	)
 }

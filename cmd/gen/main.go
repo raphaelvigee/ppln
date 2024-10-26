@@ -46,14 +46,14 @@ func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.In
 			 i{{$i}} I{{$i}},
 		{{end -}}
 		{{ range $idx, $i := loop .OutCount -}}
-			 emit{{$i}} func (O{{$i}}),
+			 emit{{$i}} func (*LineageRef, O{{$i}}),
 		{{ end -}}
 	) {
 		{{- if gt .OutCount 0}}
 			{{.OutputVars}} := f({{.InputVars}})
-	
+
 			{{- range $idx, $i := loop .OutCount }}
-				emit{{$i}}(v{{$i}})
+				emit{{$i}}(nil, v{{$i}})
 			{{ end -}}
 		{{- else}}
 			f({{.InputVars}})
@@ -84,7 +84,7 @@ type FuncStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] func(
 	 _ I{{$i}},
 {{end -}}
 {{ range $idx, $i := loop .OutCount -}}
-	 emit{{$i}} func (O{{$i}}),
+	 emit{{$i}} func (*LineageRef, O{{$i}}),
 {{ end -}}
 )
 
@@ -101,11 +101,11 @@ type funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}] struct {
 	machinery *NodeMachinery
 }
 
-func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() int {
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Inputs() uint8 {
 	return {{.InCount}}
 }
 
-func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Outputs() int {
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Outputs() uint8 {
 	return {{.OutCount}}
 }
 
@@ -125,7 +125,7 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.
 	)
 }
 
-func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i int, v any)) {
+func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	{{- range $idx, $i := loop .InCount}}
 		 i{{$i}} := CastInput[I{{$i}}](inputs[{{$idx}}])
 	{{- end}}
@@ -135,8 +135,8 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inpu
 		 i{{$i}},
 	{{end}}
 	{{- range $idx, $i := loop .OutCount -}}
-		 func (v O{{$i}}) {
-			emit({{$idx}}, v)
+		 func (l *LineageRef, v O{{$i}}) {
+			emit({{$idx}}, l, v)
 		 },
 	{{ end}}
 	)
