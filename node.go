@@ -6,7 +6,6 @@ import (
 	"github.com/dlsniper/debugger"
 	"maps"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -143,12 +142,16 @@ type Machinery interface {
 	Machinery() *NodeMachinery
 }
 
+var pipeId atomic.Uint64
+
 //goland:noinspection GoVetLostCancel
 func Pipeline(to Machinery, from ...interface {
 	Machinery
 	NodeHas1Out
 }) {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	pipeId := pipeId.Add(1)
 
 	var wg sync.WaitGroup
 
@@ -171,10 +174,12 @@ func Pipeline(to Machinery, from ...interface {
 					vs := m.ValueMapper(v)
 
 					for _, v := range vs {
-						to.Machinery().Incoming(i, v)
+						v.Index = uint8(i)
+						to.Machinery().Incoming(pipeId, v)
 					}
 				} else {
-					to.Machinery().Incoming(i, v)
+					v.Index = uint8(i)
+					to.Machinery().Incoming(pipeId, v)
 				}
 			}
 		}()
@@ -187,14 +192,13 @@ func NewNodeMachinery(n Node) *NodeMachinery {
 	return &NodeMachinery{
 		n: n,
 		stagedValues: valueStore{
-			mem:    map[string]Value{},
-			staged: nil,
+			mem: NewIDTrie(int(n.Inputs())),
 		},
 		id: sourceId.Add(1),
 	}
 }
 
-type Listener func(i uint8, v Value)
+type Listener func(v Value)
 
 type listenerContainer struct {
 	ID   uint64
@@ -211,8 +215,7 @@ type NodeMachinery struct {
 
 	valueMiddleware Listener
 
-	stagedValuesm sync.Mutex
-	stagedValues  valueStore
+	stagedValues valueStore
 }
 
 var sourceId atomic.Uint64
@@ -284,7 +287,7 @@ func (m *NodeMachinery) Run(inputs ...Value) {
 		defer m.listenerm.RUnlock()
 
 		for _, l := range m.listeners {
-			l.Func(i, Value{
+			l.Func(Value{
 				Value:   v,
 				Index:   i,
 				Lineage: emitId,
@@ -304,7 +307,7 @@ func (m *NodeMachinery) Listen(ctx context.Context) chan Value {
 	m.listenerm.Lock()
 	m.listeners = append(m.listeners, listenerContainer{
 		ID: id,
-		Func: func(i uint8, v Value) {
+		Func: func(v Value) {
 			ch <- v
 		},
 	})
@@ -328,119 +331,149 @@ func (m *NodeMachinery) Listen(ctx context.Context) chan Value {
 	return ch
 }
 
-func (m *NodeMachinery) Incoming(i int, v Value) {
-	values, do := m.processIncoming(i, v)
-	if !do {
+func (m *NodeMachinery) Incoming(pipeId uint64, v Value) {
+	if m.n.Inputs() == 1 {
+		m.Run(v)
 		return
 	}
 
-	m.Run(values...)
+	valuesCh := make(chan []Value)
+
+	go m.stagedValues.set(pipeId, v, int(m.n.Inputs()), valuesCh)
+
+	for values := range valuesCh {
+		m.Run(values...)
+	}
 }
 
 type valueStore struct {
-	mem    map[string]Value
+	mem    *IDTrie
 	staged [][]Value
+	m      sync.Mutex
 }
 
-func (s *valueStore) strid(id LineageID) string {
-	ids := make([]string, len(id))
-	for i, v := range id {
-		ids[i] = fmt.Sprint(v)
+func (s *valueStore) set(pipeId uint64, incoming Value, cap int, ch chan []Value) {
+	defer close(ch)
+
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.mem.Insert(pipeId, incoming)
+
+	dbg := func(s string, args ...any) {
+		//fmt.Printf(s+"\n", args...)
 	}
 
-	return strings.Join(ids, ",")
-}
+	dbg("SET %v", incoming)
 
-func (s *valueStore) set(incoming Value, cap uint8) []Value {
-	s.mem[s.strid(incoming.Lineage)] = incoming
+	staged := false
+	for stagedIdx := 0; stagedIdx < len(s.staged); stagedIdx++ {
+		inputs := s.staged[stagedIdx]
 
-	for stagedIdx, inputs := range s.staged {
+		dbg("CHECK %v", inputs)
+
 		valueAtIndex := inputs[incoming.Index]
 
-		if !valueAtIndex.IsSet() {
-			allSet := true
-			compatible := true
-			for _, value := range inputs {
-				if !value.IsSet() {
-					if value.Index != incoming.Index {
-						allSet = false
-					}
-				} else {
-					if !incoming.Lineage.Correlates(value.Lineage) {
-						compatible = false
-						break
-					}
-				}
-			}
+		if valueAtIndex.IsSet() {
+			dbg("SET")
 
-			if compatible {
-				if allSet {
-					inputs[incoming.Index] = incoming
-
-					s.staged = slices.Delete(s.staged, stagedIdx, stagedIdx+1)
-
-					return inputs
-				} else {
-					inputs[incoming.Index] = incoming
-
-					s.staged[stagedIdx] = inputs
-
-					return nil
-				}
-			}
-		}
-	}
-
-	values := make([]Value, cap)
-	for i, value := range values {
-		value.Index = uint8(i)
-		values[i] = value
-	}
-	values[incoming.Index] = incoming
-
-	for _, value := range s.mem {
-		if values[value.Index].IsSet() {
 			continue
 		}
 
-		if value.Lineage.Correlates(incoming.Lineage) {
-			values[value.Index] = value
+		allSet := true
+		compatible := true
+		for _, value := range inputs {
+			dbg("CORR %v", value)
+
+			if !value.IsSet() {
+				dbg("NOT SET")
+				if value.Index != incoming.Index {
+					allSet = false
+				}
+			} else {
+				if !incoming.Lineage.Correlates(value.Lineage) {
+					compatible = false
+					break
+				}
+				dbg("CORRELATES")
+			}
+		}
+
+		if compatible {
+			dbg("COMPATIBLE")
+
+			staged = true
+
+			inputs[incoming.Index] = incoming
+
+			if allSet {
+				dbg("ALLSET")
+
+				s.staged = slices.Delete(s.staged, stagedIdx, stagedIdx+1)
+				stagedIdx--
+
+				ch <- inputs
+			} else {
+				dbg("STAGE")
+
+				s.staged[stagedIdx] = inputs
+			}
 		}
 	}
 
-	allSet := true
-	for _, value := range values {
-		if !value.IsSet() {
-			allSet = false
-			break
-		}
+	if staged {
+		dbg("HAS STAGED")
+
+		return
 	}
 
-	if allSet {
-		return values
+	dbg("STAGING")
+
+	values := make([]Value, cap)
+	for i := range values {
+		values[i] = Value{
+			Index: uint8(i),
+		}
+	}
+	values[incoming.Index] = incoming
+
+	if t, ok := s.mem.GetTrie(pipeId, nil /*LineageID{incoming.Lineage[0]}*/); ok {
+		dbg("HAS TRIE")
+
+		t.Walk(func(value Value) {
+			dbg("CHECK %v", value)
+
+			if values[value.Index].IsSet() {
+				return
+			}
+
+			if value.Lineage.Correlates(incoming.Lineage) {
+				dbg("ADD %v", value)
+				values[value.Index] = value
+			}
+		})
+
+		allSet := true
+		for _, value := range values {
+			if !value.IsSet() {
+				allSet = false
+				break
+			}
+		}
+
+		if allSet {
+			dbg("ALL SET")
+
+			ch <- values
+
+			return
+		}
 	}
 
 	s.staged = append(s.staged, values)
-
-	return nil
 }
 
-func (m *NodeMachinery) processIncoming(i int, v Value) ([]Value, bool) {
-	v.Index = uint8(i)
-
-	if m.n.Inputs() == 1 {
-		return []Value{v}, true
-	}
-
-	m.stagedValuesm.Lock()
-	defer m.stagedValuesm.Unlock()
-
-	values := m.stagedValues.set(v, m.n.Inputs())
-
-	return values, len(values) > 0
-}
-
-func CastInput[T any](v any) T {
+func Cast[T any](v any) T {
 	if v == nil {
 		var zero T
 

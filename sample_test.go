@@ -40,6 +40,94 @@ func TestSanity(t *testing.T) {
 	}
 }
 
+func BenchmarkSanity1(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		benchmarkSanity(b, 1)
+	}
+}
+func BenchmarkSanity10(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		benchmarkSanity(b, 10)
+	}
+}
+func BenchmarkSanity1000(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		benchmarkSanity(b, 1000)
+	}
+}
+func BenchmarkSanity10000(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		benchmarkSanity(b, 10000)
+	}
+}
+
+//func BenchmarkSanity100000(b *testing.B) {
+//	for n := 0; n < b.N; n++ {
+//		benchmarkSanity(b, 100000)
+//	}
+//}
+//
+//func BenchmarkSanity1000000(b *testing.B) {
+//	for n := 0; n < b.N; n++ {
+//		benchmarkSanity(b, 1000000)
+//	}
+//}
+
+func TestSanity1(b *testing.T) {
+	benchmarkSanity(b, 1)
+}
+func TestSanity10(b *testing.T) {
+	benchmarkSanity(b, 10)
+}
+func TestSanity1000(b *testing.T) {
+	benchmarkSanity(b, 1000)
+}
+
+func TestSanity10000(b *testing.T) {
+	benchmarkSanity(b, 10000)
+}
+
+//func TestSanity1000000(b *testing.T) {
+//	benchmarkSanity(b, 1000000)
+//}
+
+func benchmarkSanity(b testing.TB, n int) {
+	debugger.SetLabels(func() []string {
+		return []string{"where", b.Name()}
+	})
+
+	var wg sync.WaitGroup
+	var c atomic.Int64
+	wg.Add(1)
+
+	var expected int64
+	for i := 1; i <= n; i++ {
+		expected += int64(i * 2)
+	}
+
+	source := NewFuncStreamNode0x1(func(emit1 func(*LineageRef, int)) {
+		defer wg.Done()
+
+		for i := 1; i <= n; i++ {
+			wg.Add(1)
+			emit1(NewLineageRef(), i)
+		}
+	})
+	sink := NewFuncNode2x0(func(v1, v2 int) {
+		//fmt.Println(v1, v2)
+		sum := v1 + v2
+		c.Add(int64(sum))
+		wg.Done()
+	})
+
+	Pipeline2(source, source, sink)
+
+	go source.Run()
+
+	wg.Wait()
+	assert.Equal(b, expected, c.Load())
+}
+
 func receive[T any](t *testing.T, ch chan T, n int, timeout time.Duration) []T {
 	t.Helper()
 
@@ -52,6 +140,7 @@ func receive[T any](t *testing.T, ch chan T, n int, timeout time.Duration) []T {
 			out = append(out, res)
 		case <-timeoutCh:
 			require.FailNowf(t, "did not receive", "failed to receive %v", i)
+			//assert.Failf(t, "did not receive", "failed to receive %v", i)
 			break
 		}
 	}
