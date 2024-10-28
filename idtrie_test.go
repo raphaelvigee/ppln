@@ -31,15 +31,27 @@ func TestIDTrieSanity(t *testing.T) {
 		{Lineage: []uint64{1, 2, 4}, Value: "hello2"},
 	}, values)
 
-	tr, ok = tr.GetTrie(pipeId, nil)
-	assert.True(t, ok)
+	{
+		tr, ok := tr.GetTrie(pipeId, nil)
+		assert.True(t, ok)
+
+		values = make([]Value, 0)
+		tr.Walk(func(value Value) {
+			values = append(values, value)
+		})
+		assert.EqualValues(t, []Value{
+			{Lineage: []uint64{1, 2, 3}, Value: "hello1"},
+			{Lineage: []uint64{1, 2, 4}, Value: "hello2"},
+		}, values)
+	}
+
+	tr.Remove(pipeId, []uint64{1, 2, 3}, 0)
 
 	values = make([]Value, 0)
 	tr.Walk(func(value Value) {
 		values = append(values, value)
 	})
 	assert.EqualValues(t, []Value{
-		{Lineage: []uint64{1, 2, 3}, Value: "hello1"},
 		{Lineage: []uint64{1, 2, 4}, Value: "hello2"},
 	}, values)
 }
@@ -91,6 +103,7 @@ func BenchmarkIDTrieInsert1000_1000(b *testing.B) {
 
 func benchmarkIDTrieInsert(b *testing.B, levels, n int) {
 	b.Helper()
+	b.ReportAllocs()
 
 	ls := make([]LineageID, 0, n)
 	for i := 0; i < n; i++ {

@@ -144,32 +144,36 @@ type Machinery interface {
 
 var pipeId atomic.Uint64
 
-//goland:noinspection GoVetLostCancel
 func Pipeline(to Machinery, from ...interface {
 	Machinery
 	NodeHas1Out
 }) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx := context.Background()
 
 	pipeId := pipeId.Add(1)
 
-	var wg sync.WaitGroup
+	var startedWg sync.WaitGroup
 
 	for i, from := range from {
-		wg.Add(1)
+		startedWg.Add(1)
 
 		go func() {
 			debugger.SetLabels(func() []string {
 				return []string{"where", fmt.Sprintf("Pipeline %p (%v) -> %p", from, i, to)}
 			})
 
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
 			ch := from.Machinery().Listen(ctx)
 
-			wg.Done()
+			startedWg.Done()
 
 			for v := range ch {
+				if _, ok := v.Value.(SourceDone); ok {
+					continue
+				}
+
 				if m, ok := from.(NodeValueMapper); ok {
 					vs := m.ValueMapper(v)
 
@@ -185,7 +189,7 @@ func Pipeline(to Machinery, from ...interface {
 		}()
 	}
 
-	wg.Wait()
+	startedWg.Wait()
 }
 
 func NewNodeMachinery(n Node) *NodeMachinery {
@@ -235,39 +239,69 @@ func (m *NodeMachinery) NewSourceRun(values ...any) {
 	m.Run(args...)
 }
 
+func (m *NodeMachinery) emit(v Value) {
+	m.listenerm.RLock()
+	defer m.listenerm.RUnlock()
+
+	for _, l := range m.listeners {
+		l.Func(v)
+	}
+}
+
+type SourceDone struct{}
+
 func (m *NodeMachinery) Run(inputs ...Value) {
+	var id LineageID
+	switch len(inputs) {
+	case 1:
+		id = inputs[0].Lineage
+		if len(id) == 0 {
+			panic("empty lineage")
+		}
+	default:
+		var pipeId uint64
+		idm := map[uint64]struct{}{}
+		for _, value := range inputs {
+			for i, id := range value.Lineage {
+				if i == 0 {
+					if pipeId == 0 {
+						pipeId = id
+					} else {
+						if pipeId != id {
+							panic(fmt.Sprintf("mismatch pipeid: %v %v", pipeId, id))
+						}
+					}
+
+					continue
+				}
+
+				idm[id] = struct{}{}
+			}
+		}
+
+		id = make(LineageID, 1, len(idm)+1)
+		id[0] = pipeId
+		for idk := range maps.Keys(idm) {
+			id = append(id, idk)
+		}
+		slices.Sort(id[1:])
+
+		if len(id) == 1 {
+			id = append(id, sourceId.Add(1))
+		}
+	}
+
 	args := make([]any, len(inputs))
 	for i, v := range inputs {
 		args[i] = v.Value
 	}
 
-	var id LineageID
-	if m.n.Outputs() > 0 { // if we gonna need an id at some point
-		switch len(inputs) {
-		case 1:
-			id = inputs[0].Lineage
-			if len(id) == 0 {
-				panic("empty lineage")
-			}
-		default:
-			idm := map[uint64]struct{}{}
-			for _, value := range inputs {
-				for _, id := range value.Lineage {
-					idm[id] = struct{}{}
-				}
-			}
-			if len(idm) == 0 {
-				idm[sourceId.Add(1)] = struct{}{}
-			}
-
-			id = slices.Collect(maps.Keys(idm))
-			slices.Sort(id)
-
-			if len(id) == 0 {
-				panic("empty lineage")
-			}
-		}
-	}
+	defer func() {
+		m.emit(Value{
+			Value:   SourceDone{},
+			Lineage: id,
+		})
+	}()
 
 	m.n.Do(args, func(i uint8, l *LineageRef, v any) {
 		if i >= m.n.Outputs() {
@@ -283,16 +317,11 @@ func (m *NodeMachinery) Run(inputs ...Value) {
 			emitId = l.get(id)
 		}
 
-		m.listenerm.RLock()
-		defer m.listenerm.RUnlock()
-
-		for _, l := range m.listeners {
-			l.Func(Value{
-				Value:   v,
-				Index:   i,
-				Lineage: emitId,
-			})
-		}
+		m.emit(Value{
+			Value:   v,
+			Index:   i,
+			Lineage: emitId,
+		})
 	})
 }
 

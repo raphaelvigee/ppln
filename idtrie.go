@@ -4,6 +4,7 @@ const numBuckets = 32
 
 type IDTrieNode struct {
 	Parent   *IDTrieNode
+	Index    int
 	Values   []Value
 	Children [numBuckets]*IDTrieNode
 }
@@ -24,9 +25,10 @@ func (n *IDTrieNode) Walk(f func(Value)) {
 	}
 }
 
-func NewIDTrieNode(parent *IDTrieNode, numValues int) *IDTrieNode {
+func NewIDTrieNode(parent *IDTrieNode, index, numValues int) *IDTrieNode {
 	node := &IDTrieNode{
 		Parent: parent,
+		Index:  index,
 		Values: make([]Value, numValues),
 	}
 
@@ -39,7 +41,7 @@ type IDTrie struct {
 }
 
 func NewIDTrie(numValues int) *IDTrie {
-	return NewIDTrieAt(NewIDTrieNode(nil, numValues), numValues)
+	return NewIDTrieAt(NewIDTrieNode(nil, 0, 0), numValues)
 }
 
 func NewIDTrieAt(node *IDTrieNode, numValues int) *IDTrie {
@@ -71,7 +73,7 @@ func (t *IDTrie) findNode(pipeId uint64, id LineageID, create bool) *IDTrieNode 
 
 		if current.Children[bucketIdx] == nil {
 			if create {
-				current.Children[bucketIdx] = NewIDTrieNode(current, t.NumValues)
+				current.Children[bucketIdx] = NewIDTrieNode(current, bucketIdx, t.NumValues)
 			} else {
 				return nil
 			}
@@ -88,32 +90,48 @@ func (t *IDTrie) Insert(pipeId uint64, v Value) {
 	node.Values[v.Index] = v
 }
 
-//func (t *IDTrie) Remove(pipeId uint64, id LineageID, idx int) {
-//	node := t.findNode(pipeId, id, true)
-//
-//	if node == nil {
-//		return
-//	}
-//
-//	node.Values[idx] = Value{
-//		Index: uint8(idx),
-//	}
-//
-//	allEmpty := true
-//	for _, value := range node.Values {
-//		if value.IsSet() {
-//			allEmpty = false
-//		}
-//	}
-//
-//	if !allEmpty {
-//		return
-//	}
-//
-//	for node.Parent != nil {
-//
-//	}
-//}
+func (t *IDTrie) Remove(pipeId uint64, id LineageID, idx int) {
+	node := t.findNode(pipeId, id, false)
+
+	if node == nil {
+		return
+	}
+
+	node.Values[idx] = Value{
+		Index: uint8(idx),
+	}
+
+	current := node
+
+	for current.Parent != nil {
+		allEmpty := true
+		for _, value := range node.Values {
+			if value.IsSet() {
+				allEmpty = false
+			}
+		}
+
+		if !allEmpty {
+			break
+		}
+
+		current.Parent.Children[current.Index] = nil
+
+		allEmpty = true
+		for _, child := range current.Parent.Children {
+			if child != nil {
+				allEmpty = false
+				break
+			}
+		}
+
+		if !allEmpty {
+			break
+		}
+
+		current = current.Parent
+	}
+}
 
 func (t *IDTrie) Get(pipeId uint64, id LineageID, idx int) (Value, bool) {
 	node := t.findNode(pipeId, id, false)
