@@ -52,9 +52,11 @@ func NewFuncNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeDef}}](f FuncNode{{.In
 		{{- if gt .OutCount 0}}
 			{{.OutputVars}} := f({{.InputVars}})
 
+			l := SameLineageRef()
+			defer l.Done()
 			{{- range $idx, $i := loop .OutCount }}
-				emit{{$i}}(nil, v{{$i}})
-			{{ end -}}
+				emit{{$i}}(l, v{{$i}})
+			{{- end }}
 		{{- else}}
 			f({{.InputVars}})
 		{{- end -}}
@@ -127,7 +129,7 @@ func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Run({{.
 
 func (f *funcStreamNode{{.InCount}}x{{.OutCount}}[{{.GenericsTypeRef}}]) Do(inputs []any, emit func(i uint8, l *LineageRef, v any)) {
 	{{- range $idx, $i := loop .InCount}}
-		 i{{$i}} := CastInput[I{{$i}}](inputs[{{$idx}}])
+		 i{{$i}} := Cast[I{{$i}}](inputs[{{$idx}}])
 	{{- end}}
 
 	f.Func(

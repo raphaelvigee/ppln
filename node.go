@@ -11,25 +11,46 @@ import (
 )
 
 type LineageRef struct {
+	new     bool
 	lineage LineageID
 	m       sync.Mutex
+	onDone  func()
 }
 
-func NewLineageRef() *LineageRef {
+func SameLineageRef() *LineageRef {
 	return &LineageRef{}
 }
 
-func (l *LineageRef) get(id LineageID) LineageID {
+func NewLineageRef() *LineageRef {
+	return &LineageRef{new: true}
+}
+
+func (l *LineageRef) get(id LineageID, onDone func()) LineageID {
 	l.m.Lock()
 	defer l.m.Unlock()
 
-	if len(l.lineage) > 0 {
-		return l.lineage
+	l.onDone = onDone
+
+	if l.new {
+		l.lineage = append(id, sourceId.Add(1))
+	} else {
+		if len(l.lineage) > 0 {
+			return l.lineage
+		}
+
+		l.lineage = id
 	}
 
-	l.lineage = append(id, sourceId.Add(1))
-
 	return l.lineage
+}
+
+func (l *LineageRef) Done() {
+	f := l.onDone
+	if f == nil {
+		return
+	}
+
+	f()
 }
 
 type Node interface {
@@ -138,17 +159,40 @@ func Filter[T any](f func(v T) bool) StreamNode1x1[T, T] {
 	})
 }
 
+func ArrayEach[E any, S ~[]E]() StreamNode1x2[S, int, E] {
+	return NewFuncStreamNode1x2[S, int, E](func(v S, emitIndex func(*LineageRef, int), emitValue func(*LineageRef, E)) {
+		for i, e := range v {
+			l := NewLineageRef()
+			emitIndex(l, i)
+			emitValue(l, e)
+			l.Done()
+		}
+	})
+}
+
+func MapEach[K comparable, V any, S ~map[K]V]() StreamNode1x2[S, K, V] {
+	return NewFuncStreamNode1x2[S, K, V](func(v S, emitKey func(*LineageRef, K), emitValue func(*LineageRef, V)) {
+		for i, e := range v {
+			l := NewLineageRef()
+			emitKey(l, i)
+			emitValue(l, e)
+			l.Done()
+		}
+	})
+}
+
 type Machinery interface {
 	Machinery() *NodeMachinery
 }
 
 var pipeId atomic.Uint64
 
+//goland:noinspection ALL
 func Pipeline(to Machinery, from ...interface {
 	Machinery
 	NodeHas1Out
 }) {
-	ctx := context.Background()
+	ctx := context.Background() // TODO
 
 	pipeId := pipeId.Add(1)
 
@@ -162,15 +206,14 @@ func Pipeline(to Machinery, from ...interface {
 				return []string{"where", fmt.Sprintf("Pipeline %p (%v) -> %p", from, i, to)}
 			})
 
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
 			ch := from.Machinery().Listen(ctx)
 
 			startedWg.Done()
 
 			for v := range ch {
 				if _, ok := v.Value.(SourceDone); ok {
+					v.Index = uint8(i)
+					to.Machinery().Incoming(pipeId, v)
 					continue
 				}
 
@@ -220,11 +263,18 @@ type NodeMachinery struct {
 	valueMiddleware Listener
 
 	stagedValues valueStore
+
+	EnableDebug bool
 }
 
 var sourceId atomic.Uint64
 
 func (m *NodeMachinery) NewSourceRun(values ...any) {
+	if len(values) == 0 {
+		m.Run()
+		return
+	}
+
 	id := LineageID{sourceId.Add(1)}
 
 	args := make([]Value, len(values))
@@ -253,42 +303,24 @@ type SourceDone struct{}
 func (m *NodeMachinery) Run(inputs ...Value) {
 	var id LineageID
 	switch len(inputs) {
+	case 0:
+		id = LineageID{sourceId.Add(1)}
 	case 1:
 		id = inputs[0].Lineage
-		if len(id) == 0 {
-			panic("empty lineage")
-		}
 	default:
-		var pipeId uint64
 		idm := map[uint64]struct{}{}
 		for _, value := range inputs {
-			for i, id := range value.Lineage {
-				if i == 0 {
-					if pipeId == 0 {
-						pipeId = id
-					} else {
-						if pipeId != id {
-							panic(fmt.Sprintf("mismatch pipeid: %v %v", pipeId, id))
-						}
-					}
-
-					continue
-				}
-
+			for _, id := range value.Lineage {
 				idm[id] = struct{}{}
 			}
 		}
 
-		id = make(LineageID, 1, len(idm)+1)
-		id[0] = pipeId
-		for idk := range maps.Keys(idm) {
-			id = append(id, idk)
-		}
-		slices.Sort(id[1:])
+		id = slices.Collect(maps.Keys(idm))
+		slices.Sort(id)
+	}
 
-		if len(id) == 1 {
-			id = append(id, sourceId.Add(1))
-		}
+	if len(id) == 0 {
+		panic("empty lineage")
 	}
 
 	args := make([]any, len(inputs))
@@ -296,25 +328,16 @@ func (m *NodeMachinery) Run(inputs ...Value) {
 		args[i] = v.Value
 	}
 
-	defer func() {
-		m.emit(Value{
-			Value:   SourceDone{},
-			Lineage: id,
-		})
-	}()
-
 	m.n.Do(args, func(i uint8, l *LineageRef, v any) {
 		if i >= m.n.Outputs() {
 			panic(fmt.Sprintf("trying to output %v, but node has %v outputs", i, m.n.Outputs()))
 		}
 
-		if len(id) == 0 {
-			panic("empty lineage")
-		}
-
 		emitId := id
 		if l != nil {
-			emitId = l.get(id)
+			emitId = l.get(id, func() {
+				m.SourceDone(l)
+			})
 		}
 
 		m.emit(Value{
@@ -361,12 +384,19 @@ func (m *NodeMachinery) Listen(ctx context.Context) chan Value {
 }
 
 func (m *NodeMachinery) Incoming(pipeId uint64, v Value) {
+	if _, ok := v.Value.(SourceDone); ok {
+		m.stagedValues.cleanup(pipeId, v)
+		return
+	}
+
 	if m.n.Inputs() == 1 {
 		m.Run(v)
 		return
 	}
 
 	valuesCh := make(chan []Value)
+
+	m.stagedValues.debug = m.EnableDebug
 
 	go m.stagedValues.set(pipeId, v, int(m.n.Inputs()), valuesCh)
 
@@ -375,10 +405,46 @@ func (m *NodeMachinery) Incoming(pipeId uint64, v Value) {
 	}
 }
 
+func (m *NodeMachinery) SourceDone(l *LineageRef) {
+	return
+	m.emit(Value{
+		Value:   SourceDone{},
+		Lineage: l.lineage,
+	})
+}
+
+func (m *NodeMachinery) Debug() {
+	fmt.Println("Staged:")
+	for _, values := range m.stagedValues.staged {
+		fmt.Println("  ", values)
+	}
+	fmt.Println("Mem:")
+	m.stagedValues.mem.Walk(func(value Value) {
+		fmt.Println("  ", value)
+	})
+}
+
 type valueStore struct {
 	mem    *IDTrie
 	staged [][]Value
 	m      sync.Mutex
+	debug  bool
+}
+
+func (s *valueStore) cleanup(pipeId uint64, v Value) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.mem.Remove(pipeId, v.Lineage, int(v.Index))
+
+	for stagedIdx := 0; stagedIdx < len(s.staged); stagedIdx++ {
+		inputs := s.staged[stagedIdx]
+
+		if inputs[v.Index].Lineage.Correlates(v.Lineage) {
+			s.staged = slices.Delete(s.staged, stagedIdx, stagedIdx+1)
+			stagedIdx--
+		}
+	}
 }
 
 func (s *valueStore) set(pipeId uint64, incoming Value, cap int, ch chan []Value) {
@@ -389,8 +455,10 @@ func (s *valueStore) set(pipeId uint64, incoming Value, cap int, ch chan []Value
 
 	s.mem.Insert(pipeId, incoming)
 
-	dbg := func(s string, args ...any) {
-		//fmt.Printf(s+"\n", args...)
+	dbg := func(msg string, args ...any) {
+		if s.debug {
+			fmt.Printf(msg+"\n", args...)
+		}
 	}
 
 	dbg("SET %v", incoming)
@@ -422,6 +490,7 @@ func (s *valueStore) set(pipeId uint64, incoming Value, cap int, ch chan []Value
 			} else {
 				if !incoming.Lineage.Correlates(value.Lineage) {
 					compatible = false
+					dbg("NOT CORRELATES")
 					break
 				}
 				dbg("CORRELATES")

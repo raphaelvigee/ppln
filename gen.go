@@ -170,7 +170,10 @@ func NewFuncNode0x1[O1 any](f FuncNode0x1[O1]) StreamNode0x1[O1] {
 		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f()
-		emit1(nil, v1)
+
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
 	})
 }
 
@@ -238,9 +241,11 @@ func NewFuncNode0x2[O1 any, O2 any](f FuncNode0x2[O1, O2]) StreamNode0x2[O1, O2]
 		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f()
-		emit1(nil, v1)
 
-		emit2(nil, v2)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
 	})
 }
 
@@ -314,11 +319,12 @@ func NewFuncNode0x3[O1 any, O2 any, O3 any](f FuncNode0x3[O1, O2, O3]) StreamNod
 		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f()
-		emit1(nil, v1)
 
-		emit2(nil, v2)
-
-		emit3(nil, v3)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
+		emit3(l, v3)
 	})
 }
 
@@ -463,7 +469,10 @@ func NewFuncNode1x1[I1 any, O1 any](f FuncNode1x1[I1, O1]) StreamNode1x1[I1, O1]
 		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1)
-		emit1(nil, v1)
+
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
 	})
 }
 
@@ -539,9 +548,11 @@ func NewFuncNode1x2[I1 any, O1 any, O2 any](f FuncNode1x2[I1, O1, O2]) StreamNod
 		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
 	})
 }
 
@@ -623,11 +634,12 @@ func NewFuncNode1x3[I1 any, O1 any, O2 any, O3 any](f FuncNode1x3[I1, O1, O2, O3
 		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
-
-		emit3(nil, v3)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
+		emit3(l, v3)
 	})
 }
 
@@ -786,7 +798,10 @@ func NewFuncNode2x1[I1 any, I2 any, O1 any](f FuncNode2x1[I1, I2, O1]) StreamNod
 		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1, i2)
-		emit1(nil, v1)
+
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
 	})
 }
 
@@ -868,9 +883,11 @@ func NewFuncNode2x2[I1 any, I2 any, O1 any, O2 any](f FuncNode2x2[I1, I2, O1, O2
 		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1, i2)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
 	})
 }
 
@@ -958,11 +975,12 @@ func NewFuncNode2x3[I1 any, I2 any, O1 any, O2 any, O3 any](f FuncNode2x3[I1, I2
 		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1, i2)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
-
-		emit3(nil, v3)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
+		emit3(l, v3)
 	})
 }
 
@@ -1133,7 +1151,10 @@ func NewFuncNode3x1[I1 any, I2 any, I3 any, O1 any](f FuncNode3x1[I1, I2, I3, O1
 		emit1 func(*LineageRef, O1),
 	) {
 		v1 := f(i1, i2, i3)
-		emit1(nil, v1)
+
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
 	})
 }
 
@@ -1221,9 +1242,11 @@ func NewFuncNode3x2[I1 any, I2 any, I3 any, O1 any, O2 any](f FuncNode3x2[I1, I2
 		emit2 func(*LineageRef, O2),
 	) {
 		v1, v2 := f(i1, i2, i3)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
 	})
 }
 
@@ -1317,11 +1340,12 @@ func NewFuncNode3x3[I1 any, I2 any, I3 any, O1 any, O2 any, O3 any](f FuncNode3x
 		emit3 func(*LineageRef, O3),
 	) {
 		v1, v2, v3 := f(i1, i2, i3)
-		emit1(nil, v1)
 
-		emit2(nil, v2)
-
-		emit3(nil, v3)
+		l := SameLineageRef()
+		defer l.Done()
+		emit1(l, v1)
+		emit2(l, v2)
+		emit3(l, v3)
 	})
 }
 

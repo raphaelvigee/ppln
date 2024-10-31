@@ -139,8 +139,8 @@ func receive[T any](t *testing.T, ch chan T, n int, timeout time.Duration) []T {
 		case res := <-ch:
 			out = append(out, res)
 		case <-timeoutCh:
-			require.FailNowf(t, "did not receive", "failed to receive %v", i)
-			//assert.Failf(t, "did not receive", "failed to receive %v", i)
+			//require.FailNowf(t, "did not receive", "failed to receive %v", i)
+			assert.Failf(t, "did not receive", "failed to receive %v", i)
 			break
 		}
 	}
@@ -159,8 +159,13 @@ func TestMemorySanity(t *testing.T) {
 		return "hello"
 	})
 	multi := NewFuncStreamNode1x1(func(v string, emit1 func(*LineageRef, string)) {
-		emit1(NewLineageRef(), v+"1")
-		emit1(NewLineageRef(), v+"2")
+		l1 := NewLineageRef()
+		emit1(l1, v+"1")
+		l1.Done()
+
+		l2 := NewLineageRef()
+		emit1(l2, v+"2")
+		l2.Done()
 	})
 	sink := NewFuncNode2x0(func(v1 string, v2 string) {
 		chRes <- v1 + " " + v2
